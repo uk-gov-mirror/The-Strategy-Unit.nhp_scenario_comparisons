@@ -29,3 +29,19 @@ make_scheme_name <- function(
 
   scheme_string
 }
+
+
+possibly_get_metadata <- function(...) {
+  purrr::possibly(get_metadata, tibble::tibble())(...)
+}
+
+bold_red <- \(x) paste0("<p style='color:red;'><strong>", x, "</strong></p>")
+
+
+swap_names <- function(vec) {
+  stopifnot(rlang::is_named(vec))
+  rlang::set_names(names(vec), vec)
+}
+
+
+pull_unique <- \(df, col) unique(df[[col]])
