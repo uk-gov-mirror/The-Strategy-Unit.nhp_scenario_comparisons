@@ -2,19 +2,10 @@
 #' @param input,output,session Internal parameters for {shiny}.
 #' @noRd
 
-#this should be commented out in live versions
-
-# load_local_data <- TRUE
-# nhp_model_runs <- readRDS("inst/app/tmp_runs_file.rds") |> #tmp_runs_file.rds is an rds of the output of get_nhp_result_sets()
-#   dplyr::filter(!app_version == "dev") |>
-#   dplyr::filter(stringr::str_extract(file, "[^/]+$") %in%
-#                   list.files("jsons/")
-#   )
-
 app_server <- function(input, output, session) {
   get_comparable_scenarios <- function(model_runs, scheme) {
     model_runs |>
-      dplyr::filter(.data[["dataset"]] == scheme) |>
+      dplyr::filter(.data[["dataset"]] == .env[["scheme"]]) |>
       dplyr::mutate(
         comparable_scenarios = dplyr::n(),
         .by = c("start_year", "end_year", "app_version")
@@ -22,22 +13,19 @@ app_server <- function(input, output, session) {
       dplyr::filter(.data[["comparable_scenarios"]] >= 2)
   }
 
-  load_local_data <- FALSE
-
   allowed_datasets <- shiny::reactive({
     get_user_allowed_datasets(session$groups)
   })
 
   nhp_model_runs <- shiny::reactive({
-    rs <- get_nhp_result_sets(
-      allowed_datasets = allowed_datasets()
-    )
+    results_metadata_tbl <- get_nhp_result_sets(allowed_datasets())
 
-    # if a user isn't in the nhp_dev group, then do not display un-viewable/dev results
+    # if a user isn't in the nhp_dev group, don't display unviewable/dev runs
     if ("nhp_devs" %in% session$groups) {
-      rs
+      results_metadata_tbl
     } else {
-      dplyr::filter(rs, .data[["viewable"]], .data[["app_version"]] != "dev")
+      results_metadata_tbl |>
+        dplyr::filter(.data[["viewable"]], .data[["app_version"]] != "dev")
     }
   })
 
@@ -200,38 +188,17 @@ app_server <- function(input, output, session) {
   })
 
   output$metadata <- DT::renderDT({
-    df <- dplyr::bind_rows(
-      possibly_get_metadata(nhp_model_runs(), selections$main_scenario),
-      possibly_get_metadata(nhp_model_runs(), selections$comparator_scenario)
+    df <- list(selections$main_scenario, selections$comparator_scenario) |>
+      purrr::map(possibly_add_outputs_app_link) |>
+      purrr::list_rbind()
+    error_msg <- paste0(
+      "Fewer than 2 scenarios have been selected. ",
+      "Please ensure you have selected both scenario names and run times."
     )
-
     if (nrow(df) < 2) {
-      DT::datatable(
-        tibble::tibble(
-          Message = paste0(
-            "Fewer than 2 scenarios have been selected. ",
-            "Please ensure you have selected both scenario names and run times."
-          )
-        ),
-        rownames = FALSE,
-        options = list(
-          paging = FALSE,
-          searching = FALSE,
-          ordering = FALSE,
-          dom = "t"
-        )
-      )
+      create_dt(tibble::tibble(Message = error_msg))
     } else {
-      DT::datatable(
-        df,
-        rownames = FALSE,
-        escape = FALSE,
-        options = list(
-          paging = FALSE,
-          searching = FALSE,
-          ordering = FALSE
-        )
-      )
+      create_dt(df)
     }
   })
 

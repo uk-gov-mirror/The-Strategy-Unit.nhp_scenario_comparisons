@@ -31,12 +31,15 @@ make_scheme_name <- function(
 }
 
 
-possibly_get_metadata <- function(...) {
-  purrr::possibly(get_metadata, tibble::tibble())(...)
-}
-
 bold_red <- \(x) paste0("<p style='color:red;'><strong>", x, "</strong></p>")
 
+# fmt: skip
+create_dt <- function(...) {
+  purrr::partial(DT::datatable, rownames = FALSE, escape = FALSE,
+    options = list(
+      paging = FALSE, searching = FALSE, ordering = FALSE, dom = "t"
+    ))(...)
+}
 
 swap_names <- function(vec) {
   stopifnot(rlang::is_named(vec))

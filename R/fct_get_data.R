@@ -1,3 +1,63 @@
+get_results_metadata <- function(allowed_datasets) {
+  token <- azkit::get_auth_token()
+  if (!token$validate()) {
+    token$refresh()
+  }
+  # fmt: skip
+  table_cols <- c(
+    "dataset", "app_version", "scenario", "start_year", "end_year", "viewable",
+    "create_datetime", "run_stage", "aggregated_results_path", "outputs_app_uri"
+  )
+  select_cols <- paste0(table_cols, collapse = ",")
+
+  azkit::read_azure_table(
+    Sys.getenv("AZ_TABLE_NAME"),
+    token = token,
+    filter = "status eq 'complete' and aggregated_results_path ne ''",
+    select = select_cols
+  ) |>
+    dplyr::filter(
+      dplyr::if_any("dataset", \(x) x %in% allowed_datasets),
+      dplyr::if_any("app_version", \(x) x == "dev" | x >= "v3.1")
+    ) |>
+    dplyr::select(tidyselect::all_of(table_cols))
+}
+
+
+get_user_allowed_datasets <- function(groups = NULL) {
+  codes <- names(yyjsonr::read_json_file("supporting_data/datasets.json"))
+  nhp_stub <- "^nhp_(national|icb|provider)_"
+  if (is.null(groups) || any(c("nhp_devs", "nhp_power_users") %in% groups)) {
+    c("synthetic", codes)
+  } else {
+    allowed <- sub(nhp_stub, "", grepv(nhp_stub, groups))
+    c("synthetic", intersect(codes, allowed))
+  }
+}
+
+
+# results_container_name <- Sys.getenv("AZ_STORAGE_CONTAINER_RESULTS")
+# results_cont <- azkit::get_container(results_container_name, token = token)
+
+add_outputs_app_link <- function(results_metadata_tbl) {
+  connect_url <- "https://connect.strategyunitwm.nhs.uk"
+  t <- "target='_blank'"
+  results_metadata_tbl |>
+    dplyr::mutate(
+      dplyr::across("create_datetime", \(x) sub("Z", "", sub("T", " ", x))),
+      url_app_version = gsub("\\.", "-", .data[["app_version"]]),
+      outputs_url = glue::glue("{connect_url}/nhp/{url_app_version}"),
+      outputs_url = glue::glue("{outputs_url}/outputs/?{outputs_app_uri}"),
+      outputs_app = glue::glue("<a href='{outputs_url}' {t}>Launch</a> \U1F517")
+    ) |>
+    dplyr::select(!c("url_app_version", "outputs_url"))
+}
+
+possibly_add_outputs_app_link <- function(...) {
+  purrr::possibly(add_outputs_app_link, tibble::tibble())(...)
+}
+
+
 #This code originated from final_reports
 parse_results <- function(r) {
   r$population_variants <- as.character(r$population_variants)
@@ -175,7 +235,7 @@ extract_major_version <- function(version_string) {
   if (identical(version_string, "dev")) {
     return(Inf)
   }
-  
+
   is_correct_format <- stringr::str_detect(
     version_string,
     "^v\\d{1,}\\.\\d{1,}$" # e.g. 'v3.6'
