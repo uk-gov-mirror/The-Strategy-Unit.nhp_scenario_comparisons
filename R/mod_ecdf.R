@@ -19,23 +19,30 @@ mod_ecdf_server <- function(id, processed) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    #will result_1 and result_2 always have the same activity_type and measures
-    #available? or will using result_1 to make the filters leave out some
-    #combinations sometimes?
-    df <- shiny::reactive(processed()$distribution_data$result_1) #takes result_1 from processed
-    df2 <- shiny::reactive(processed()$distribution_data$result_2)
-    scn1 <- shiny::reactive(processed()$distribution_data$scenario_1_name)
-    scn2 <- shiny::reactive(processed()$distribution_data$scenario_2_name)
+    scn1 <- shiny::reactive(processed()$scenario_1_name)
+    scn2 <- shiny::reactive(processed()$scenario_2_name)
+    beeswarm_data1a <- shiny::reactive(processed()$beeswarm_data1a)
+    beeswarm_data1b <- shiny::reactive(processed()$beeswarm_data1b)
+    beeswarm_data1c <- shiny::reactive(processed()$beeswarm_data1c)
+    beeswarm_data1d <- shiny::reactive(processed()$beeswarm_data1d)
+    beeswarm_data1e <- shiny::reactive(processed()$beeswarm_data1e)
+    beeswarm_data1f <- shiny::reactive(processed()$beeswarm_data1f)
+    beeswarm_data2a <- shiny::reactive(processed()$beeswarm_data2a)
+    beeswarm_data2b <- shiny::reactive(processed()$beeswarm_data2b)
+    beeswarm_data2c <- shiny::reactive(processed()$beeswarm_data2c)
+    beeswarm_data2d <- shiny::reactive(processed()$beeswarm_data2d)
+    beeswarm_data2e <- shiny::reactive(processed()$beeswarm_data2e)
+    beeswarm_data2f <- shiny::reactive(processed()$beeswarm_data2f)
 
-    pods <- shiny::reactive({
-      get_activity_type_pod_measure_options() |>
-        dplyr::filter(.data$pod %in% unique(df()$result$default$pod))
+    label_lookup <- shiny::reactive({
+      get_apm_lookup() |>
+        dplyr::mutate(dplyr::across("measure", \(x) {
+          uppercase_init(sub("dd", "d D", sub("_", "-", x)))
+        }))
     })
 
-    # could dynamically create UI here, based on the variables found within df?
-
     output$filters_ui <- shiny::renderUI({
-      shiny::req(df())
+      shiny::req(processed())
 
       shiny::tagList(
         shiny::tags$div(
@@ -43,7 +50,7 @@ mod_ecdf_server <- function(id, processed) {
           shiny::selectInput(
             ns("filter1"),
             "Activity Type",
-            choices = unique(pods()$activity_type_name)
+            choices = pull_unique(label_lookup(), "activity_type_label")
           ),
           shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
         )
@@ -51,43 +58,60 @@ mod_ecdf_server <- function(id, processed) {
     })
 
     shiny::observe({
-      shiny::req(df(), input$filter1)
+      shiny::req(processed(), input$filter1)
 
-      filter2_values <- pods() |>
-        dplyr::filter(.data$activity_type_name == input$filter1) |>
-        dplyr::pull(.data$measures) |>
-        unique()
-
-      filter2_choices <- measure_pretty_names[
-        measure_pretty_names %in% filter2_values
-      ]
+      filter2_choices <- label_lookup() |>
+        dplyr::filter(.data[["activity_type_label"]] == input$filter1) |>
+        pull_unique("measure")
 
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })
 
     output$plot <- shiny::renderPlot(
       {
-        shiny::req(df(), df2(), scn1(), scn2(), input$filter1, input$filter2)
+        shiny::req(processed(), scn1(), scn2(), input$filter1, input$filter2)
 
-        selected_pods <- pods() |>
-          dplyr::filter(.data$activity_type_name == input$filter1) |>
-          dplyr::pull(.data$pod)
+        result_1 <- if (input$filter1 == "Inpatients") {
+          if (input$filter2 == "Admissions") {
+            beeswarm_data1a()
+          } else {
+            beeswarm_data1b()
+          }
+        } else if (input$filter1 == "Outpatients") {
+          if (input$filter2 == "Attendances") {
+            beeswarm_data1c()
+          } else {
+            beeswarm_data1d()
+          }
+        } else {
+          if (input$filter2 == "Walk-in") {
+            beeswarm_data1e()
+          } else {
+            beeswarm_data1f()
+          }
+        }
+        result_2 <- if (input$filter1 == "Inpatients") {
+          if (input$filter2 == "Admissions") {
+            beeswarm_data2a()
+          } else {
+            beeswarm_data2b()
+          }
+        } else if (input$filter1 == "Outpatients") {
+          if (input$filter2 == "Attendances") {
+            beeswarm_data2c()
+          } else {
+            beeswarm_data2d()
+          }
+        } else {
+          if (input$filter2 == "Walk-in") {
+            beeswarm_data2e()
+          } else {
+            beeswarm_data2f()
+          }
+        }
 
-        result_1 <- get_model_run_distribution(
-          df(),
-          pod = selected_pods,
-          measure = input$filter2,
-          site_codes = NULL
-        )
-        result_2 <- get_model_run_distribution(
-          df2(),
-          pod = selected_pods,
-          measure = input$filter2,
-          site_codes = NULL
-        )
-
-        # Require at least one result has data
-        shiny::req(!is.null(result_1) || !is.null(result_2))
+        # Require that at least one result has data
+        shiny::req(any(c(nrow(result_1), nrow(result_2)) > 0))
 
         combined_dist <- dplyr::bind_rows(
           add_scenario_safe(result_1, scn1()),
@@ -97,16 +121,13 @@ mod_ecdf_server <- function(id, processed) {
         # Require combined_dist has rows
         shiny::req(nrow(combined_dist) > 0)
 
-        mod_model_results_distribution_ecdf_plot_scenario(
-          combined_dist,
-          show_origin = input$show_origin
-        ) +
-          ggplot2::ggtitle(glue::glue(
-            input$filter1,
-            input$filter2,
-            "- S-curve (empirical cumulative distribution function)",
-            .sep = " "
-          ))
+        mod_distribution_ecdf_plot(combined_dist) +
+          ggplot2::ggtitle(
+            glue::glue(
+              "{input$filter1} {input$filter2} - S-curve ",
+              "(empirical cumulative distribution function)"
+            )
+          )
       },
       res = 100,
     )

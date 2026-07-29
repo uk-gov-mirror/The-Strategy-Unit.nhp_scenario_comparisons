@@ -6,22 +6,22 @@
 # id_col is the column name containing the unique "scenario+datetime"
 # wrap_length can be used to adjust the character length for wrapping
 
-get_label_map <- function(df, id_col = .data$id, wrap_length = 50) {
+get_label_map <- function(df, id_col = "id", wrap_length = 50) {
   df |>
-    dplyr::distinct({{ id_col }}) |>
+    dplyr::distinct(dplyr::pick(.data[[id_col]])) |>
     dplyr::mutate(
       name = stringr::str_replace_all(
         stringr::str_wrap(
-          stringr::str_extract({{ id_col }}, "^[^+]+"),
+          stringr::str_extract(.data[[id_col]], "^[^+]+"),
           width = wrap_length,
           whitespace_only = FALSE
         ),
         "\\n",
-        "<br>"
+        "<br />"
       ),
 
       name = dplyr::if_else(
-        stringr::str_detect(.data$name, "<br>", negate = TRUE) &
+        stringr::str_detect(.data$name, "<br />", negate = TRUE) &
           nchar(.data$name) > wrap_length,
         stringr::str_replace_all(
           .data$name,

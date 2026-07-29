@@ -1,214 +1,63 @@
-create_bar_plot_distribution <- function(data, pod_filter, title_text) {
-  # Create a new column for the measure names using the lookup
-  data <- data |>
-    dplyr::mutate(measure_name = get_label(.data$measure, measure_pretty_names))
-
-  ggplot2::ggplot(
-    dplyr::filter(data, .data$pod == pod_filter),
-    ggplot2::aes(x = .data$principal, y = .data$measure_name, fill = .data$id)
-  ) +
-    ggplot2::geom_bar(stat = 'identity', position = 'dodge', width = 0.7) +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(xmin = .data$lwr_ci, xmax = .data$upr_ci),
-      width = 0.6,
-      position = ggplot2::position_dodge(0.7)
+mod_distribution_beeswarm_plot <- function(beeswarm_data) {
+  min_x_value <- min(beeswarm_data[["value"]], beeswarm_data[["baseline"]])
+  summary_tbl <- beeswarm_data |>
+    dplyr::summarise(
+      dplyr::across(c("baseline", "principal"), unique),
+      .by = "scenario"
+    )
+  beeswarm_data |>
+    ggplot2::ggplot(ggplot2::aes(.data[["value"]], 1)) +
+    ggbeeswarm::geom_quasirandom(
+      ggplot2::aes(colour = .data[["scenario"]]),
+      orientation = "y",
+      size = 3,
+      alpha = 0.5
     ) +
-    ggplot2::scale_x_continuous(labels = scales::comma) +
-    ggplot2::ggtitle(title_text) +
-    ggplot2::ylab("Measure") +
-    ggplot2::xlab("Principal Projection") +
-    ggplot2::scale_fill_manual(
-      values = c("#f9bf07", "#686f73"),
-      name = "Scenario",
-      labels = get_label_map(data)
+    ggplot2::scale_colour_manual(values = c("red", "blue")) +
+    ggplot2::geom_vline(
+      ggplot2::aes(xintercept = .data[["baseline"]]),
+      data = summary_tbl,
+      colour = "grey50",
+      linewidth = 1.2
     ) +
-    ggeasy::easy_center_title() +
-    ggplot2::theme(text = ggplot2::element_text(family = "Segoe UI")) +
-    ggplot2::theme(
-      axis.text.x = ggplot2::element_text(
-        family = "Segoe UI",
-        size = 12,
-        color = "black"
-      )
-    ) +
-    ggplot2::theme(
-      axis.text.y = ggplot2::element_text(
-        family = "Segoe UI",
-        size = 12,
-        color = "black"
-      )
-    ) +
-    ggplot2::theme(
-      axis.title.x = ggplot2::element_text(
-        family = "Segoe UI",
-        size = 12,
-        color = "black"
-      )
-    ) +
-    ggplot2::theme(
-      axis.title.y = ggplot2::element_text(
-        family = "Segoe UI",
-        size = 12,
-        color = "black"
-      )
-    ) +
-    ggplot2::theme(
-      legend.title = ggplot2::element_text(
-        family = "Segoe UI",
-        size = 12,
-        color = "black"
-      )
-    ) +
-    ggplot2::theme(
-      legend.text = ggtext::element_markdown(
-        family = "Segoe UI",
-        size = 12,
-        color = "black",
-        hjust = 0.5,
-        lineheight = 1.5
+    ggplot2::geom_vline(
+      ggplot2::aes(
+        xintercept = .data[["principal"]],
+        colour = .data[["scenario"]]
       ),
-      legend.position = "bottom"
-    )
-}
-
-# new function for beeswarm -----------------------------------------------
-
-mod_model_results_distribution_beeswarm_plot_scenario <- function(
-  data,
-  scenario_1_name,
-  scenario_2_name,
-  show_origin
-) {
-  labels <- c("scenario_1" = scenario_1_name, "scenario_2" = scenario_2_name)
-
-  b <- data$baseline[[1]]
-  # two lines instead of 1 below for the separate principal projections
-  # p1 <- data$principal[data$scenario==scenario_1_name][[1]]
-  # p2 <- data$principal[data$scenario==scenario_2_name][[1]]
-
-  p <- data |>
-    dplyr::group_by(.data$scenario) |>
-    dplyr::summarise(principal = unique(.data$principal))
-
-  x_placeholder <- "100%" # dummy label to help line up beeswarm and ECDF plots
-
-  g <- data |>
-    require_rows() |>
-    ggplot2::ggplot() +
-    suppressWarnings(
-      ggbeeswarm::geom_quasirandom(
-        ggplot2::aes(
-          x = x_placeholder,
-          y = .data$value,
-          # colour by scenario instead of variant here
-          colour = .data$scenario,
-          text = glue::glue(
-            "Value: {scales::comma(value, accuracy = 1)}\nVariant: {variant}"
-          )
-        ),
-        alpha = 0.5
-      )
-    ) +
-    # new line here for manually setting the colours
-    ggplot2::scale_color_manual(
-      values = c("red", "blue"),
-      labels = get_label_map(data, id_col = .data$scenario)
-      #values = c(scenario_1_name = "red", scenario_2_name = "blue"),
-      #labels = c(scenario_1_name, scenario_2_name)
-    )
-
-  if (show_origin) {
-    g <- g + ggplot2::geom_hline(yintercept = b, colour = "dimgrey")
-  }
-
-  g <- g +
-    ggplot2::geom_hline(yintercept = b, colour = "dimgrey") +
-    # two lines instead of 1 below for the separate principal projections
-    #ggplot2::geom_hline(yintercept = p1, linetype = "dashed", colour = "red") +
-    #ggplot2::geom_hline(yintercept = p2, linetype = "dashed", colour = "blue") +
-    ggplot2::geom_hline(
-      data = p,
-      ggplot2::aes(yintercept = .data$principal, colour = .data$scenario),
+      data = summary_tbl,
       linetype = "dashed",
-      linewidth = 1
+      linewidth = 1.2
     ) +
-    ggplot2::expand_limits(y = ifelse(show_origin, 0, b)) +
-    ggplot2::coord_flip() +
-    ggplot2::scale_y_continuous(
-      breaks = scales::pretty_breaks(10),
-      labels = scales::comma,
-      expand = c(0.002, 0)
+    ggplot2::expand_limits(x = min_x_value) +
+    ggplot2::scale_x_continuous(
+      breaks = scales::breaks_pretty(8),
+      labels = scales::label_comma(),
+      expand = ggplot2::expansion(0.01)
     ) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(0.15)) +
     ggplot2::theme(
+      text = ggplot2::element_text(family = "Segoe UI", size = 12),
+      plot.title = ggplot2::element_text(size = 14, hjust = 0.5),
+      legend.text = ggplot2::element_text(face = "bold", hjust = 0.1),
       legend.position = "bottom",
-      #axis.title.x = ggplot2::element_blank(),
+      axis.title.x = ggplot2::element_blank(),
       axis.ticks.y = ggplot2::element_blank(),
-      # keep y-axis labels to help line up beeswarm/ECDF, but make 'invisible'
-      axis.text.y = ggplot2::element_text(colour = "white"),
-      axis.title.y = ggplot2::element_text(colour = "white"),
-      legend.text = ggtext::element_markdown(
-        family = "Segoe UI",
-        size = 12,
-        color = "black",
-        hjust = 0.5,
-        lineheight = 1.5
-      ),
       strip.text = ggplot2::element_blank(),
       strip.background = ggplot2::element_blank()
     ) +
-    ggplot2::facet_grid(
-      rows = dplyr::vars(.data$scenario) #,
-      #labeller = ggplot2::labeller(scenario = labels)
-    )
-
-  g
+    ggplot2::facet_grid(rows = dplyr::vars(.data[["scenario"]]))
 }
 
 
-# new function for s-curve ------------------------------------------------
-
-mod_model_results_distribution_ecdf_plot_scenario <- function(
-  data,
-  show_origin
-) {
-  percentiles <- data |>
-    dplyr::group_by(.data$scenario) |>
-    dplyr::summarise(
-      baseline = .data$baseline[[1]],
-      p10 = stats::quantile(.data$value, 0.1),
-      principal = .data$principal[[1]],
-      p90 = stats::quantile(.data$value, 0.9)
-    )
-
-  # Calculate y value for principal x value (find nearest % for the principal)
-  # x_vals <- sort(data[["value"]])
-  # y_vals <- sort(ecdf_fn(data[["value"]]))
-  # principal_diffs <- abs(p - x_vals) # nearest x in ECDF to the principal
-  # min_principal_diff_i <- which(principal_diffs == min(principal_diffs))[1]
-  # p_pcnt <- y_vals[min_principal_diff_i]
-
-  min_x <- min(percentiles$baseline, min(data[["value"]]))
-  min_x <- dplyr::if_else(show_origin, 0, min_x)
-
-  # line_guides <- tibble::tibble(
-  #   x_start = c(rep(min_x, 3), x_quantiles, p),
-  #   x_end   = rep(c(x_quantiles, p), 2),
-  #   y_start = c(probs_pcnts, p_pcnt, rep(0, 3)),
-  #   y_end   = rep(c(probs_pcnts, p_pcnt), 2),
-  #   colour  = "cornflowerblue"
-  # )
-  #
-  # lines_n <- nrow(line_guides)
-  # line_guides[c(lines_n, lines_n / 2), "colour"] <- "red"
-
-  ggplot2::ggplot(data, ggplot2::aes(x = .data$value, color = .data$scenario)) +
-    ggplot2::stat_ecdf(geom = "step", alpha = 0.8) +
-    # Add vertical dashed lines at 10% and 90%
+mod_distribution_ecdf_plot <- function(ecdf_plot_data) {
+  ecdf_plot_data |>
+    ggplot2::ggplot(ggplot2::aes(.data[["value"]])) +
+    ggplot2::stat_ecdf(alpha = 0.8) +
     ggplot2::geom_segment(
       data = percentiles,
       ggplot2::aes(x = .data$p10, xend = .data$p10, y = 0, yend = 0.1),
       linetype = "dashed",
-      #color = "red",
       show.legend = FALSE
     ) +
     # ggplot2::geom_segment(data = percentiles,
@@ -322,5 +171,74 @@ mod_model_results_distribution_ecdf_plot_scenario <- function(
         lineheight = 1.5
       ),
       legend.position = "bottom"
+    )
+}
+
+
+mod_distribution_ecdf_plot <- function(ecdf_plot_data) {
+  min_x_value <- min(ecdf_plot_data[["value"]], ecdf_plot_data[["baseline"]])
+  summary_tbl <- ecdf_plot_data |>
+    dplyr::summarise(
+      dplyr::across(c("baseline", "principal"), unique),
+      .by = "scenario"
+    )
+  ecdf_fn <- stats::ecdf(ecdf_plot_data[["value"]])
+  quantiles <- c(0.1, 0.9)
+  x_quantiles <- stats::quantile(ecdf_fn, quantiles)
+  x_vals <- sort(ecdf_plot_data[["value"]])
+  y_vals <- sort(ecdf_fn(ecdf_plot_data[["value"]]))
+  principal_diffs <- abs(principal_value - x_vals)
+  principal_match_value <- which.min(principal_diffs)
+  principal_pct <- y_vals[[principal_match_value]]
+  min_x_value <- ifelse(show_zero, 0, min(baseline_value, min_value))
+  plot_red <- "red"
+  plot_blue <- "cornflowerblue"
+
+  line_guides <- tibble::tibble(
+    x_start = c(rep(min_x_value, 3), x_quantiles, principal_value),
+    x_end = rep(c(x_quantiles, principal_value), 2),
+    y_start = c(quantiles, principal_pct, rep(0, 3)),
+    y_end = rep(c(quantiles, principal_pct), 2),
+    colour = rep(c(rep(plot_blue, 2), plot_red), 2)
+  )
+  interim_plot <- tibble::tibble(x = x_vals, y = y_vals) |>
+    ggplot2::ggplot(ggplot2::aes(.data[["x"]], .data[["y"]]))
+  interim_plot +
+    ggplot2::geom_step(colour = "grey50", linewidth = 1.2) +
+    ggplot2::geom_segment(
+      data = line_guides,
+      ggplot2::aes(
+        x = .data[["x_start"]],
+        y = .data[["y_start"]],
+        xend = .data[["x_end"]],
+        yend = .data[["y_end"]]
+      ),
+      # colour removed as an explicit aesthetic because plotly doesn't respect
+      # `show.legend = FALSE`
+      colour = line_guides[["colour"]],
+      linetype = "dashed",
+      linewidth = 1.2,
+      show.legend = FALSE
+    ) +
+    ggplot2::geom_vline(
+      xintercept = baseline_value,
+      colour = "grey50",
+      linewidth = 1.2
+    ) +
+    ggplot2::expand_limits(x = min_x_value) +
+    ggplot2::scale_x_continuous(
+      breaks = scales::pretty_breaks(8),
+      labels = scales::label_comma(),
+      expand = ggplot2::expansion(0.01)
+    ) +
+    ggplot2::scale_y_continuous(
+      breaks = seq(0, 1, 0.1),
+      labels = scales::percent,
+      expand = ggplot2::expansion(0)
+    ) +
+    ggplot2::labs(y = "Percentage of model runs") +
+    ggplot2::theme(
+      text = ggplot2::element_text(size = 16),
+      axis.title.x = ggplot2::element_blank()
     )
 }

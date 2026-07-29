@@ -13,9 +13,7 @@ mod_p10_p90_bar_server <- function(id, processed) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$data_distribution_summary) #takes data_distribution_summary from processed
-
-    # could dynamically create UI here, based on the variables found within df?
+    df <- shiny::reactive(processed()$data_distribution_summary)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -40,11 +38,7 @@ mod_p10_p90_bar_server <- function(id, processed) {
     shiny::observeEvent(input$category, {
       shiny::req(input$category, df())
 
-      # All possible PODs for this category
-      all_choices <- pod_categories[[input$category]]
-
-      # Only keep PODs that actually appear in the data
-      available <- all_choices[all_choices %in% unique(df()$pod)]
+      available <- pull_unique(df(), "pod_label")
 
       shiny::updateSelectInput(
         session,
@@ -56,16 +50,7 @@ mod_p10_p90_bar_server <- function(id, processed) {
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1)
-
-        create_bar_plot_distribution(
-          df(),
-          input$filter1,
-          glue::glue(
-            "{get_label(input$filter1, unlist(pod_categories))}",
-            "- Principal projection (with p10 and p90 indicator)",
-            .sep = " "
-          )
-        )
+        create_distribution_bar_chart(df(), input$filter1)
       },
       res = 100,
     )

@@ -1,6 +1,6 @@
 mod_processing_server <- function(
   id,
-  result_sets,
+  results_metadata_tbl,
   selections,
   scenario_selections,
   trigger,
@@ -18,7 +18,7 @@ mod_processing_server <- function(
             selections$comparator_scenario$app_version
       )
 
-      shiny::withProgress(message = "Fetching scenarios..", value = 0, {
+      shiny::withProgress(message = "Fetching scenarios...", value = 0, {
         selected <- scenario_selections()
 
         shiny::req(
@@ -28,380 +28,168 @@ mod_processing_server <- function(
           scenario_selections()$scenario_2_runtime
         )
 
-        nhp_model_runs <- result_sets
-
-        #get files
-        scenario_1_file <- nhp_model_runs |>
+        scenario_1_dir <- results_metadata_tbl |>
           dplyr::filter(
-            .data$scenario == selected$scenario_1,
-            .data$create_datetime == selected$scenario_1_runtime
+            .data[["scenario"]] == selected$scenario_1,
+            .data[["create_datetime"]] == selected$scenario_1_runtime
           ) |>
-          dplyr::pull(.data$results_json_gz_path)
+          dplyr::pull("aggregated_results_path")
 
-        scenario_2_file <- nhp_model_runs |>
+        scenario_2_dir <- results_metadata_tbl |>
           dplyr::filter(
-            .data$scenario == selected$scenario_2,
-            .data$create_datetime == selected$scenario_2_runtime
+            .data[["scenario"]] == selected$scenario_2,
+            .data[["create_datetime"]] == selected$scenario_2_runtime
           ) |>
-          dplyr::pull(.data$results_json_gz_path)
+          dplyr::pull("aggregated_results_path")
 
         shiny::incProgress(0.1)
 
-        shiny::req(length(scenario_1_file) > 0, length(scenario_2_file) > 0)
+        shiny::req(all(lengths(c(scenario_1_dir, scenario_2_dir)) == 1))
 
         if (local_data_flag) {
-          jsons <- tibble::tibble(
-            paths = list.files("jsons/", full.names = TRUE)
-          ) |>
-            dplyr::filter(stringr::str_ends(.data$paths, "\\.json\\.gz")) |>
-            dplyr::mutate(
-              file_name = stringr::str_remove(.data$paths, "jsons/")
-            )
+          rds_paths <- dir("rds", "\\.rds$", full.names = TRUE)
+          scenario_1_dir_short <- sub("^agg[^/]+", "rds", scenario_1_dir)
+          scenario_2_dir_short <- sub("^agg[^/]+", "rds", scenario_2_dir)
+          rds_path1 <- grepv(paste0("^", scenario_1_dir_short), rds_paths)
+          rds_path2 <- grepv(paste0("^", scenario_2_dir_short), rds_paths)
 
-          json_1_file <- jsons$paths[
-            jsons$file_name ==
-              stringr::str_extract(
-                scenario_1_file,
-                "[^/]+$"
-              )
-          ]
-
-          json_2_file <- jsons$paths[
-            jsons$file_name ==
-              stringr::str_extract(
-                scenario_2_file,
-                "[^/]+$"
-              )
-          ]
-
-          get_json_results <- function(path) {
-            readBin(path, raw(), n = file.size(path)) |>
-              jsonlite::parse_gzjson_raw(simplifyVector = FALSE) |>
-              parse_results()
-          }
-
-          result_1 <- get_json_results(json_1_file)
-
-          result_2 <- get_json_results(json_2_file)
+          results_1 <- readRDS(rds_path1)
+          results_2 <- readRDS(rds_path2)
         } else {
-          result_1 <- get_nhp_results(file = scenario_1_file)
-          shiny::incProgress(0.25)
+          results_1 <- read_azure_results(scenario_1_dir)
+          shiny::incProgress(0.35)
 
-          result_2 <- get_nhp_results(file = scenario_2_file)
-          shiny::incProgress(0.25)
+          results_2 <- read_azure_results(scenario_2_dir)
+          shiny::incProgress(0.35)
         }
 
-        # grab the scenario_names
+        scenario_1_name <- scenario_selections()$scenario_1
+        scenario_2_name <- scenario_selections()$scenario_2
+        scenario_1_rt <- scenario_selections()$scenario_1_runtime
+        scenario_2_rt <- scenario_selections()$scenario_2_runtime
 
-        scenario_1_name <- result_1$params$scenario
-        scenario_2_name <- result_2$params$scenario
+        # scenario_1_id <- glue::glue("{scenario_1_name}+{scenario_1_rt}")
+        # scenario_2_id <- glue::glue("{scenario_2_name}+{scenario_2_rt}")
 
-        scenario_1_id <- paste0(
-          scenario_1_name,
-          "+",
-          scenario_selections()$scenario_1_runtime
-        )
-        scenario_2_id <- paste0(
-          scenario_2_name,
-          "+",
-          scenario_selections()$scenario_2_runtime
-        )
-
-        df1 <- mod_principal_summary_data(result_1, sites = NULL) |>
-          dplyr::mutate(scenario = scenario_1_name, id = scenario_1_id)
-        df2 <- mod_principal_summary_data(result_2, sites = NULL) |>
+        pod_lookup <-
+          df1 <- reskit::compile_principal_pod_data(results_1, sites = NULL) |>
+            dplyr::mutate(scenario = scenario_1_name, id = scenario_1_id)
+        df2 <- reskit::compile_principal_pod_data(results_2, sites = NULL) |>
           dplyr::mutate(scenario = scenario_2_name, id = scenario_2_id)
 
         # data processing
         data <- dplyr::bind_rows(df1, df2)
 
         shiny::incProgress(0.1)
-        # get the measure from the pod name
-        # cols [1] "scenario"      "pod_name"
-        #[3] "activity_type" "baseline"
-        #[5] "principal"     "change"
-        #[7] "change_pcnt"   "measure"
-        # activity type drives the main plot
-        # measure drives the y axis
-        # pod_name is the y axis. This might be able to be combined
-        data <- data |>
-          dplyr::mutate(
-            measure = dplyr::case_when(
-              grepl("Admission", pod_name) ~ "Admissions",
-              grepl("Bed Day", pod_name) ~ "Bed days",
-              TRUE ~ "Attendance / procedure"
-            )
-          )
-        #
-        # # LoS summary -------------------------------------------------------------
-        #
-        #
-        # admissions dataset
 
-        data_1_adm <- result_1 |>
-          mod_principal_summary_los_data(
-            sites = NULL,
-            measure = "admissions"
-          ) |>
-          dplyr::mutate(id = scenario_1_id)
-
-        data_2_adm <- result_2 |>
-          mod_principal_summary_los_data(
-            sites = NULL,
-            measure = "admissions"
-          ) |>
-          dplyr::mutate(id = scenario_2_id)
-
-        # Bed days dataset
-        data_1_bed <- result_1 |>
-          mod_principal_summary_los_data(sites = NULL, measure = "beddays") |>
-          dplyr::mutate(id = scenario_1_id)
-
-        data_2_bed <- result_2 |>
-          mod_principal_summary_los_data(sites = NULL, measure = "beddays") |>
-          dplyr::mutate(id = scenario_2_id)
-
-        # data processing
-        data_admissions <- dplyr::bind_rows(
-          scenario_1 = data_1_adm,
-          scenario_2 = data_2_adm,
-          .id = "scenario"
-        ) |>
-          dplyr::mutate(
-            scenario = dplyr::case_when(
-              scenario == "scenario_1" ~ scenario_1_name,
-              scenario == "scenario_2" ~ scenario_2_name,
-              T ~ scenario
-            )
-          )
-        data_bed <- dplyr::bind_rows(
-          scenario_1 = data_1_bed,
-          scenario_2 = data_2_bed,
-          .id = "scenario"
-        ) |>
-          dplyr::mutate(
-            scenario = dplyr::case_when(
-              scenario == "scenario_1" ~ scenario_1_name,
-              scenario == "scenario_2" ~ scenario_2_name,
-              TRUE ~ .data$scenario
-            )
-          )
-
-        # cols, measure, scenario, pod_name, los_group, baseline, principal. change. change.pcnt
-        # apparently pods drive the chart data
-        #length of stay is the y axis and admissions on the x axis
-
-        data_combine <- dplyr::bind_rows(
-          "Bed Days" = data_bed,
-          "Admissions" = data_admissions,
-          .id = "measure"
-        )
+        admissions_data <- list(results_1, results_2) |>
+          purrr::map2(c(scenario_1_id, scenario_2_id), \(x, y) {
+            reskit::compile_principal_los_data(x, "admissions") |>
+              dplyr::mutate(id = y)
+          })
+        beddays_data <- list(results_1, results_2) |>
+          purrr::map2(c(scenario_1_id, scenario_2_id), \(x, y) {
+            reskit::compile_principal_los_data(x, "beddays") |>
+              dplyr::mutate(id = y)
+          })
+        los_data_combined <- list(admissions_data, beddays_data) |>
+          purrr::map(\(x) {
+            rlang::set_names(x, c(scenario_1_name, scenario_2_name)) |>
+              purrr::list_rbind(names_to = "scenario")
+          }) |>
+          rlang::set_names(c("Admissions", "Bed Days")) |>
+          purrr::list_rbind(names_to = "measure")
 
         shiny::incProgress(0.1)
-        #
-        # # impacts -----------------------------------------------------------------
-        #
-        #
-        # # Waterfalls use a list, containing one df for ip, op, aae
-        # # 2 lists are used to make the water falls
-        #
-        # # Prep a list of summary dataframes, one per activity type
 
         pcfs_1 <- prepare_all_principal_change_factors(
-          r = result_1,
+          r = results_1,
           site_codes = list(ip = NULL, op = NULL, aae = NULL)
         )
 
         pcfs_2 <- prepare_all_principal_change_factors(
-          r = result_2,
+          r = results_2,
           site_codes = list(ip = NULL, op = NULL, aae = NULL)
         )
-        #
-        # # impact bars
-        # # [1] "scenario"       "measure"
-        # # [3] "activity_type"  "change_factor"
-        # # [5] "strategy"       "mitigator_name"
-        # # [7] "value"
-        # # change factor drives the plot at the highest level
-        # # activity type and measure controls the data shown
-        # # mitigator_name controls y axis labels
-        # # change factor activity_type and measure combination controls the strategies shown in plot
-        # # pod on y axis
-        # # this isn't pod on the y axis label is it, error here
-        # # could have module ui be like 'tab variable', 'filter1 var', 'filter2 var'
+
         pcfs_comparison <- dplyr::bind_rows(
           scenario_1 = as.data.frame(dplyr::bind_rows(pcfs_1)) |>
             dplyr::mutate(scenario = scenario_1_name, id = scenario_1_id),
           scenario_2 = as.data.frame(dplyr::bind_rows(pcfs_2)) |>
             dplyr::mutate(scenario = scenario_2_name, id = scenario_2_id)
         )
-        #
-        #
-        #
-        # # activity in detail  -----------------------------------------------------
-        #
-        # tretspef_lookup <- jsonlite::read_json("supporting_data/tx-lookup.json",
-        #                                        simplifyVector = TRUE
-        # ) |>
-        #   dplyr::mutate(
-        #     dplyr::across("Description", \(x) stringr::str_remove(x, " Service$")),
-        #     dplyr::across("Description", \(x) paste0(.data$Code, ": ", .data$Description)),
-        #   ) |>
-        #   dplyr::select(-"Group") |>
-        #   dplyr::add_row(Code = "&", Description = "Not known")  # as per HES dictionary
-        #
-        # ## We get a list of all the combinations of activity type, pod, measure and
-        # # aggregation we are interested in
-        #
-        # # For inpatients, it is admissions and bed days
-        # ip_parameter_matrix <- expand.grid(
-        #   activity_type = "ip",
-        #   pod = c("ip_elective_admission", "ip_maternity_admission", "ip_elective_daycase",
-        #           "ip_regular_day_attender", "ip_non-elective_admission"),
-        #   measure = c("admissions", "beddays"),
-        #   agg_col = c("tretspef", "age_group"),
-        #   stringsAsFactors = FALSE)
-        #
-        # # for outpatients, attendances and tele-attendances
-        # op_parameter_matrix <- expand.grid(
-        #   activity_type = "op",
-        #   pod = c("op_procedure", "op_follow-up", "op_first"),
-        #   measure = c("attendances", "tele_attendances"),
-        #   agg_col = c("tretspef", "age_group"),
-        #   stringsAsFactors = FALSE)
-        #
-        # # for A&E, ambulance and walk-in and there is no tretspef
-        # aae_parameter_matrix <- expand.grid(
-        #   activity_type = "aae",
-        #   pod = c("aae_type-01", "aae_type-02"),
-        #   measure = c("ambulance", "walk-in"),
-        #   agg_col = c("age_group"),
-        #   stringsAsFactors = FALSE)
-        #
-        # # combine them all together
-        # parameter_matrix <- dplyr::bind_rows(
-        #   ip_parameter_matrix,
-        #   op_parameter_matrix,
-        #   aae_parameter_matrix)
-        #
-        #
-        #
-        # # We now insert into our function for iterating the `combine_activity_data`
-        # # function across all combinations
-        # # detailed_activity_data <- run_combinations_list(parameter_matrix, result_1, result_2)
-        #
-        #
-        # # 80% CI -----------------------------------------------------------
-        #
-        # # load dataset
+
         shiny::incProgress(0.1)
-        data_distribution_summary <- dplyr::bind_rows(
-          result_1$results$default |>
-            dplyr::mutate(scenario = scenario_1_name, id = scenario_1_id),
-          result_2$results$default |>
-            dplyr::mutate(scenario = scenario_2_name, id = scenario_2_id)
-        )
 
-        #p <- mod_model_results_distribution_get_data(result_1,selected_measure = c("Ip","ip_elective_admission","admissions"),site_codes = NULL)
-        data_distribution_summary <- data_distribution_summary |>
-          dplyr::select(
-            .data$id,
-            .data$scenario,
-            .data$pod,
-            .data$measure,
-            .data$principal,
-            .data$lwr_ci,
-            .data$upr_ci
-          ) |>
-          dplyr::group_by(id, .data$scenario, .data$pod, .data$measure) |>
+        data_distribution_summary <- list(
+          reskit::compile_distribution_summary_data(results_1, "principal"),
+          reskit::compile_distribution_summary_data(results_2, "principal"),
+        ) |>
+          purrr::map2(c(scenario_1_name, scenario_2_name), \(x, y) {
+            dplyr::mutate(x, scenario = y)
+          }) |>
+          purrr::list_rbind() |>
           dplyr::summarise(
-            principal = sum(.data$principal),
-            lwr_ci = sum(.data$lwr_ci),
-            upr_ci = sum(.data$upr_ci)
-          ) |>
-          dplyr::ungroup()
-
-        data_distribution_summary <- data_distribution_summary |>
-          dplyr::mutate(
-            activity_type = dplyr::case_when(
-              startsWith(.data$pod, "ip") ~ "Inpatient",
-              startsWith(.data$pod, "op") ~ "Outpatient",
-              startsWith(.data$pod, "aa") ~ "A&E",
-              TRUE ~ "Other"
-            )
-          ) |>
-          dplyr::relocate(.data$activity_type, .before = 1) |>
-          dplyr::filter(
-            !(.data$pod == "op_procedure" &
-              .data$measure == "tele_attendances")
+            dplyr::across(c("principal", "lower", "upper")),
+            .by = c("scenario", "pod_label", "measure")
           )
-        #
-        #
-        #
-        # # model run distributions --------------------------------------------------
-        #
-        # scenario_1_ip_admission_dist <- get_model_run_distribution(
-        #   result_1,
-        #   pod = c("ip_elective_daycase",
-        #           "ip_non-elective_admission",
-        #           "ip_regular_day_attender",
-        #           "ip_elective_admission",
-        #           "ip_maternity_admission"
-        #   ),
-        #   measure = "admissions",
-        #   site_codes = NULL
-        # )
-        #
-        # # ndg 2
-        # scenario_2_ip_admission_dist <- get_model_run_distribution(
-        #   result_2,
-        #   pod = c("ip_elective_daycase",
-        #           "ip_non-elective_admission",
-        #           "ip_regular_day_attender",
-        #           "ip_elective_admission",
-        #           "ip_maternity_admission"
-        #   ),
-        #   measure = "admissions",
-        #   site_codes = NULL
-        # )
-        #
-        # # join them together
-        # ip_admissions_dist_comparison <- dplyr::bind_rows(
-        #   scenario_1 = scenario_1_ip_admission_dist,
-        #   scenario_2 = scenario_2_ip_admission_dist,
-        #   .id = "scenario"
-        # )
 
-        # return(list(
-        #   data = data
-        # )
+        beeswarm_data1a <- results_1 |>
+          reskit::compile_distribution_plot_data("admissions", "ip")
+        beeswarm_data1b <- results_1 |>
+          reskit::compile_distribution_plot_data("beddays", "ip")
+        beeswarm_data1c <- results_1 |>
+          reskit::compile_distribution_plot_data("attendances", "op")
+        beeswarm_data1d <- results_1 |>
+          reskit::compile_distribution_plot_data("tele_attendances", "op")
+        beeswarm_data1e <- results_1 |>
+          reskit::compile_distribution_plot_data("walk-in", "aae")
+        beeswarm_data1f <- results_1 |>
+          reskit::compile_distribution_plot_data("ambulance", "aae")
+        beeswarm_data2a <- results_2 |>
+          reskit::compile_distribution_plot_data("admissions", "ip")
+        beeswarm_data2b <- results_2 |>
+          reskit::compile_distribution_plot_data("beddays", "ip")
+        beeswarm_data2c <- results_2 |>
+          reskit::compile_distribution_plot_data("attendances", "op")
+        beeswarm_data2d <- results_2 |>
+          reskit::compile_distribution_plot_data("tele_attendances", "op")
+        beeswarm_data2e <- results_2 |>
+          reskit::compile_distribution_plot_data("walk-in", "aae")
+        beeswarm_data2f <- results_2 |>
+          reskit::compile_distribution_plot_data("ambulance", "aae")
 
         shiny::incProgress(0.1)
         list(
           data = data,
-          data_combine = data_combine,
+          results_1 = results_1,
+          results_2 = results_2,
+          los_data_combined = los_data_combined,
+          scenario_1_name,
+          scenario_2_name,
+          scenario_1_id,
+          scenario_2_id,
           waterfall_data = list(
             pcfs_1 = pcfs_1,
-            pcfs_2 = pcfs_2,
-            scenario_1_name = scenario_1_id,
-            scenario_2_name = scenario_2_id
+            pcfs_2 = pcfs_2
           ),
           pcfs_comparison = pcfs_comparison,
           data_distribution_summary = data_distribution_summary,
-          distribution_data = list(
-            result_1 = result_1,
-            result_2 = result_2,
-            scenario_1_name = scenario_1_id,
-            scenario_2_name = scenario_2_id
-          )
+          beeswarm_data1a,
+          beeswarm_data1b,
+          beeswarm_data1c,
+          beeswarm_data1d,
+          beeswarm_data1e,
+          beeswarm_data1f,
+          beeswarm_data2a,
+          beeswarm_data2b,
+          beeswarm_data2c,
+          beeswarm_data2d,
+          beeswarm_data2e,
+          beeswarm_data2f
         )
       })
     })
-
-    #output$quarto_summary <- shiny::renderTable(processed())
-
-    return(processed)
-
-    #return(list(data = processed()))
+    processed
   })
 }

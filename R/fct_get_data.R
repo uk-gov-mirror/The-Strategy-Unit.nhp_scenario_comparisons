@@ -1,3 +1,68 @@
+read_results <- function(
+  results_metadata_tbl,
+  dataset,
+  scenario,
+  create_datetime
+) {
+  token <- azkit::get_auth_token()
+  if (!token$validate()) {
+    token$refresh()
+  }
+  results_container_name <- Sys.getenv("AZ_STORAGE_CONTAINER_RESULTS")
+  results_cont <- azkit::get_container(results_container_name, token = token)
+
+  filtered_tbl <- results_metadata_tbl |>
+    shiny::req() |>
+    dplyr::filter(
+      .data[["dataset"]] == .env[["dataset"]],
+      .data[["scenario"]] == .env[["scenario"]],
+      .data[["create_datetime"]] == .env[["create_datetime"]]
+    ) |>
+    require_rows()
+  results_dir <- filtered_tbl[["aggregated_results_path"]]
+  app_version <- filtered_tbl[["app_version"]]
+
+  reskit::read_results_parquet_files(results_cont, results_dir) |>
+    shim_results(app_version)
+}
+
+
+read_azure_results <- function(results_dir) {
+  token <- azkit::get_auth_token()
+  if (!token$validate()) {
+    token$refresh()
+  }
+  results_container_name <- Sys.getenv("AZ_STORAGE_CONTAINER_RESULTS")
+  results_cont <- azkit::get_container(results_container_name, token = token)
+
+  app_version <- sub("^[^/]*/([^/]*)/.*$", "\\1", results_dir)
+  tables <- c("default", "step_counts", get_tx_table_name(app_version))
+  reskit::read_results_parquet_files(results_cont, results_dir, tables) |>
+    shim_results(app_version)
+}
+
+
+get_tx_table_name <- function(app_version) {
+  if (grepl("^v3\\.", app_version)) {
+    "tretspef_raw+los_group"
+  } else {
+    "tretspef+los_group"
+  }
+}
+
+shim_results <- function(results, app_version) {
+  if (grepl("^v3\\.", app_version)) {
+    results |>
+      rlang::set_names(\(x) sub("^tretspef_raw", "tretspef", x)) |>
+      purrr::modify_in("tretspef+los_group", \(x) {
+        dplyr::rename(x, tretspef = "tretspef_raw")
+      })
+  } else {
+    results
+  }
+}
+
+
 get_results_metadata <- function(allowed_datasets) {
   token <- azkit::get_auth_token()
   if (!token$validate()) {
@@ -5,8 +70,9 @@ get_results_metadata <- function(allowed_datasets) {
   }
   # fmt: skip
   table_cols <- c(
-    "dataset", "app_version", "scenario", "start_year", "end_year", "viewable",
-    "create_datetime", "run_stage", "aggregated_results_path", "outputs_app_uri"
+    "dataset", "scenario", "seed", "model_runs", "start_year", "end_year",
+    "app_version", "create_datetime",
+    "viewable", "run_stage", "aggregated_results_path", "outputs_app_uri"
   )
   select_cols <- paste0(table_cols, collapse = ",")
 
@@ -20,14 +86,15 @@ get_results_metadata <- function(allowed_datasets) {
       dplyr::if_any("dataset", \(x) x %in% allowed_datasets),
       dplyr::if_any("app_version", \(x) x == "dev" | x >= "v3.1")
     ) |>
+    error_on_zero_rows() |>
     dplyr::select(tidyselect::all_of(table_cols))
 }
 
 
-get_user_allowed_datasets <- function(groups = NULL) {
+get_user_allowed_datasets <- function(groups) {
   codes <- names(yyjsonr::read_json_file("supporting_data/datasets.json"))
   nhp_stub <- "^nhp_(national|icb|provider)_"
-  if (is.null(groups) || any(c("nhp_devs", "nhp_power_users") %in% groups)) {
+  if (any(c("nhp_devs", "nhp_power_users") %in% groups)) {
     c("synthetic", codes)
   } else {
     allowed <- sub(nhp_stub, "", grepv(nhp_stub, groups))
@@ -36,274 +103,28 @@ get_user_allowed_datasets <- function(groups = NULL) {
 }
 
 
-# results_container_name <- Sys.getenv("AZ_STORAGE_CONTAINER_RESULTS")
-# results_cont <- azkit::get_container(results_container_name, token = token)
-
 add_outputs_app_link <- function(results_metadata_tbl) {
   connect_url <- "https://connect.strategyunitwm.nhs.uk"
   t <- "target='_blank'"
+  # fmt: skip
+  remove_cols <- c(
+    "url_app_version", "outputs_url", "viewable", "run_stage", "aggregated_results_path",
+  )
   results_metadata_tbl |>
     dplyr::mutate(
-      dplyr::across("create_datetime", \(x) sub("Z", "", sub("T", " ", x))),
+      dplyr::across("create_datetime", tidy_dttm),
       url_app_version = gsub("\\.", "-", .data[["app_version"]]),
       outputs_url = glue::glue("{connect_url}/nhp/{url_app_version}"),
       outputs_url = glue::glue("{outputs_url}/outputs/?{outputs_app_uri}"),
       outputs_app = glue::glue("<a href='{outputs_url}' {t}>Launch</a> \U1F517")
     ) |>
-    dplyr::select(!c("url_app_version", "outputs_url"))
+    dplyr::select(!tidyselect::all_of(remove_cols))
 }
 
 possibly_add_outputs_app_link <- function(...) {
   purrr::possibly(add_outputs_app_link, tibble::tibble())(...)
 }
 
-
-#This code originated from final_reports
-parse_results <- function(r) {
-  r$population_variants <- as.character(r$population_variants)
-
-  r$results <- purrr::map(
-    r$results,
-    tibble::as_tibble
-  )
-
-  r$params <- patch_params(r$params)
-
-  # Various patches need to happen based on the model version (this logic is
-  # required in the nhp_final_reports repo because we need to handle results
-  # from all possible model versions, whereas the main branch of nhp_outputs
-  # needs only to handle the latest model version).
-  model_version <- r$params$app_version
-  major_version <- extract_major_version(model_version)
-
-  # The tretspef elements of the results object were renamed in v4.0, along with
-  # some column names. It's easiest to just rename these in the results object,
-  # regardless of app_version, and perform all wrangling on the basis of the new
-  # names.
-  if (major_version < 4) {
-    r <- rename_tretspef(r)
-  }
-
-  # If model version is after v1.2 then results should be fully patched
-  if (major_version >= 2) {
-    r <- patch_results(r)
-  }
-
-  # If model version is v1.2, then we only need to patch the tretspef and
-  # tretspef+los_group.
-  if (model_version == "v1.2") {
-    r$results <- patch_tretspef(r$results, "v1.2")
-  }
-
-  r
-}
-
-# patch params
-patch_params <- function(r) {
-  if (is.list(r)) {
-    return(purrr::map(r, patch_params))
-  }
-
-  if (is.numeric(r) && length(r) == 2) {
-    return(as.list(r))
-  }
-
-  r
-}
-
-rename_tretspef <- function(r) {
-  # Model v4.0 introduced renamed tretspef-related list-element and column names
-  # to the results. Rename them.
-  results <- r[["results"]]
-
-  # Rename relevant list-elements
-  names(results)[
-    names(results) == "tretspef_raw+los_group"
-  ] <- "tretspef+los_group"
-  names(results)[names(results) == "sex+tretspef"] <- "sex+tretspef_grouped"
-  names(results)[names(results) == "tretspef_raw"] <- "tretspef"
-
-  # Rename columns within renamed list elements (conditionally, because
-  # tretspef_raw+los_group didn't exist in some earlier versions).
-
-  has_tretspef_los <- !is.null(results[["tretspef+los_group"]])
-  if (has_tretspef_los) {
-    results[["tretspef+los_group"]] <- results[["tretspef+los_group"]] |>
-      dplyr::rename("tretspef" = "tretspef_raw")
-  }
-
-  results[["sex+tretspef_grouped"]] <- results[["sex+tretspef_grouped"]] |>
-    dplyr::rename("tretspef_grouped" = "tretspef")
-
-  results[["tretspef"]] <- results[["tretspef"]] |>
-    dplyr::rename("tretspef" = "tretspef_raw")
-
-  # Overwrite results with new tretspef names
-  r[["results"]] <- results
-  r
-}
-
-patch_results <- function(r) {
-  r$results <- purrr::imap(r$results, patch_principal)
-  r$results <- patch_step_counts(r$results)
-  r$results <- patch_tretspef(r$results, r$params$app_version)
-  r
-}
-
-patch_tretspef <- function(results, model_version) {
-  # Assumes tretspef elements have been renamed given changes made in model
-  # v4.0, i.e. rename_tretspef() has been applied to incoming results.
-
-  results[["tretspef"]] <- dplyr::bind_rows(
-    results[["tretspef"]],
-    results[["tretspef+los_group"]] |>
-      dplyr::summarise(
-        .by = c("measure", "pod", "tretspef", "sitetret"),
-        dplyr::across(
-          c("baseline", "principal", "lwr_ci", "median", "upr_ci"),
-          sum
-        ),
-        dplyr::across(
-          tidyselect::any_of("time_profiles"), # ignored if non-existent
-          \(.x) list(purrr::reduce(.x, `+`))
-        )
-      )
-  )
-
-  # More granular LoS groups were introduced with model version v3.0
-  los_groups <- c(
-    "0 days",
-    "1 day",
-    "2 days",
-    "3 days",
-    "4-7 days",
-    "8-14 days",
-    "15-21 days",
-    "22+ days"
-  )
-
-  # Use less granular groupings for scenarios prior to  model v3.0
-  if (extract_major_version(model_version) < 3) {
-    los_groups <- c("0-day", "1-7 days", "8-14 days", "15-21 days", "22+ days")
-  }
-
-  results[["tretspef+los_group"]] <- results[["tretspef+los_group"]] |>
-    dplyr::mutate(
-      dplyr::across(
-        "los_group",
-        \(.x) forcats::fct_relevel(.x, los_groups)
-      )
-    ) |>
-    dplyr::arrange(.data$pod, .data$measure, .data$sitetret, .data$los_group)
-
-  results
-}
-
-patch_principal <- function(results, name) {
-  if (name == "step_counts") {
-    return(patch_principal_step_counts(results))
-  }
-
-  dplyr::mutate(
-    results,
-    principal = purrr::map_dbl(.data[["model_runs"]], mean),
-    median = purrr::map_dbl(.data[["model_runs"]], quantile, 0.5),
-    lwr_ci = purrr::map_dbl(.data[["model_runs"]], quantile, 0.1),
-    upr_ci = purrr::map_dbl(.data[["model_runs"]], quantile, 0.9)
-  )
-}
-
-patch_principal_step_counts <- function(results) {
-  dplyr::mutate(
-    results,
-    value = purrr::map_dbl(.data[["model_runs"]], mean)
-  )
-}
-
-patch_step_counts <- function(results) {
-  if (!"strategy" %in% colnames(results$step_counts)) {
-    results$step_counts <- dplyr::mutate(
-      results$step_counts,
-      strategy = NA_character_,
-      .after = "change_factor"
-    )
-  }
-  results
-}
-
-extract_major_version <- function(version_string) {
-  if (identical(version_string, "dev")) {
-    return(Inf)
-  }
-
-  is_correct_format <- stringr::str_detect(
-    version_string,
-    "^v\\d{1,}\\.\\d{1,}$" # e.g. 'v3.6'
-  )
-
-  if (!is_correct_format) {
-    stop(
-      glue::glue(
-        "App version '{version_string}' seems to be in the wrong format."
-      )
-    )
-  }
-
-  version_string |>
-    stringr::str_remove("v") |>
-    as.numeric() |>
-    floor()
-}
-
-get_principal_high_level <- function(r, measures, sites) {
-  r$results$default |>
-    dplyr::filter(.data$measure %in% measures) |>
-    dplyr::select("pod", "sitetret", "baseline", "principal") |>
-    dplyr::mutate(dplyr::across(
-      "pod",
-      ~ ifelse(
-        stringr::str_starts(.x, "aae"),
-        "aae",
-        .x
-      )
-    )) |>
-    dplyr::group_by(.data$pod, .data$sitetret) |>
-    dplyr::summarise(
-      dplyr::across(tidyselect::where(is.numeric), sum),
-      .groups = "drop"
-    ) |>
-    trust_site_aggregation(sites)
-}
-
-get_variants <- function(r) {
-  r$population_variants |>
-    utils::tail(-1) |>
-    tibble::enframe("model_run", "variant")
-}
-
-get_model_run_distribution <- function(r, pod, measure, site_codes) {
-  filtered_results <- r$results$default |>
-    dplyr::filter(
-      .data$pod %in% .env$pod,
-      .data$measure %in% .env$measure
-    ) |>
-    dplyr::select("sitetret", "baseline", "principal", "model_runs")
-
-  if (nrow(filtered_results) == 0) {
-    return(NULL)
-  }
-
-  filtered_results |>
-    dplyr::mutate(
-      dplyr::across(
-        "model_runs",
-        \(.x) purrr::map(.x, tibble::enframe, name = "model_run")
-      )
-    ) |>
-    tidyr::unnest("model_runs") |>
-    dplyr::inner_join(get_variants(r), by = dplyr::join_by("model_run")) |>
-    trust_site_aggregation(site_codes)
-}
 
 get_principal_change_factors <- function(r, activity_type, sites) {
   stopifnot(
@@ -341,20 +162,4 @@ trust_site_aggregation <- function(data, sites) {
       dplyr::across(tidyselect::where(is.numeric), \(.x) sum(.x, na.rm = TRUE)),
       .groups = "drop"
     )
-}
-
-#' Add scenario column safely, handling NULL results
-#' @param data Data frame or NULL from get_model_run_distribution
-#' @param scenario_name Character. Name of the scenario to add
-#' @return Tibble with scenario column, or empty tibble if input is NULL
-#' @export
-add_scenario_safe <- function(data, scenario_name) {
-  if (is.null(data)) {
-    return(tibble::tibble(
-      value = numeric(),
-      variant = character(),
-      scenario = scenario_name
-    ))
-  }
-  data |> dplyr::mutate(scenario = scenario_name)
 }

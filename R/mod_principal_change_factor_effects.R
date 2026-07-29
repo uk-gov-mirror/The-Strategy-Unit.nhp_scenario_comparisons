@@ -12,7 +12,7 @@ mod_principal_change_factor_effects_cf_plot <- function(data) {
         .data[["value"]]
       ),
       tooltip = glue::glue(
-        "{snakecase::to_title_case(as.character(change_factor))}: ",
+        "{stringr::str_to_title(change_factor)}: ",
         "{scales::comma(sum(tooltip), accuracy = 1)}"
       ),
       .by = "change_factor"
@@ -36,7 +36,7 @@ mod_principal_change_factor_effects_cf_plot <- function(data) {
       breaks = scales::breaks_extended(5),
       labels = scales::comma
     ) +
-    ggplot2::scale_y_discrete(labels = snakecase::to_title_case) +
+    ggplot2::scale_y_discrete(labels = stringr::str_to_title) +
     ggplot2::labs(x = "", y = "") +
     ggplot2::theme(
       strip.text.y = ggtext::element_markdown(lineheight = 1.5),
@@ -45,11 +45,7 @@ mod_principal_change_factor_effects_cf_plot <- function(data) {
     ggplot2::facet_grid(
       rows = dplyr::vars(.data$scenario),
       labeller = ggplot2::labeller(
-        scenario = get_label_map(
-          data,
-          id_col = .data$scenario,
-          wrap_length = 20
-        )
+        scenario = get_label_map(data, id_col = "scenario", wrap_length = 20)
       )
     )
 }

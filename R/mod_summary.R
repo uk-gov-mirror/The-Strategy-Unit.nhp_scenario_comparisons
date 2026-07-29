@@ -25,7 +25,7 @@ mod_summary_server <- function(id, processed) {
           shiny::selectInput(
             ns("filter1"),
             "Activity Type",
-            choices = unique(df()$activity_type)
+            choices = pull_unique(df(), "activity_type")
           ),
           shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
         )
@@ -36,9 +36,8 @@ mod_summary_server <- function(id, processed) {
       shiny::req(df(), input$filter1)
 
       filter2_choices <- df() |>
-        dplyr::filter(.data$activity_type == input$filter1) |>
-        dplyr::pull(.data$measure) |>
-        unique()
+        dplyr::filter(.data[["activity_type"]] == input$filter1) |>
+        pull_unique("measure")
 
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })
@@ -46,18 +45,7 @@ mod_summary_server <- function(id, processed) {
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1, input$filter2)
-
-        create_bar_plot(
-          df(),
-          input$filter1,
-          input$filter2,
-          glue::glue(
-            input$filter1,
-            input$filter2,
-            "- Summary Comparison",
-            .sep = " "
-          )
-        )
+        create_summary_bar_plot(df(), input$filter1, input$filter2)
       },
       res = 100,
     )

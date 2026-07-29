@@ -13,23 +13,20 @@ app_server <- function(input, output, session) {
       dplyr::filter(.data[["comparable_scenarios"]] >= 2)
   }
 
-  allowed_datasets <- shiny::reactive({
-    get_user_allowed_datasets(session$groups)
-  })
-
   nhp_model_runs <- shiny::reactive({
-    results_metadata_tbl <- get_nhp_result_sets(allowed_datasets())
+    allowed_datasets <- get_user_allowed_datasets(session$groups)
+    results_metadata_tbl <- get_results_metadata(allowed_datasets)
 
-    # if a user isn't in the nhp_dev group, don't display unviewable/dev runs
+    # if a user isn't in the nhp_devs group, don't display unviewable/dev runs
     if ("nhp_devs" %in% session$groups) {
       results_metadata_tbl
     } else {
       results_metadata_tbl |>
-        dplyr::filter(.data[["viewable"]], .data[["app_version"]] != "dev")
+        dplyr::filter(.data[["viewable"]], .data[["app_version"]] != "dev") |>
+        require_rows()
     }
   })
 
-  # static data files ----
   datasets_list <- yyjsonr::read_json_file("supporting_data/datasets.json") |>
     swap_names()
 
@@ -212,6 +209,12 @@ app_server <- function(input, output, session) {
       input$scenario_2,
       input$scenario_2_runtime
     )
+    app_version <- nhp_model_runs() |>
+      dplyr::filter(
+        .data[["scenario"]] == input$scenario_1,
+        .data[["create_datetime"]] == input$scenario_1_runtime
+      ) |>
+      dplyr::pull("app_version")
 
     last_render(list(
       s1 = input$scenario_1,
@@ -219,12 +222,7 @@ app_server <- function(input, output, session) {
       s2 = input$scenario_2,
       s2_time = input$scenario_2_runtime,
       scheme = input$selected_scheme,
-      version = nhp_model_runs() |>
-        dplyr::filter(
-          .data[["scenario"]] == input$scenario_1,
-          .data[["create_datetime"]] == input$scenario_1_runtime
-        ) |>
-        dplyr::pull("app_version")
+      version = app_version
     ))
   })
 
@@ -233,23 +231,12 @@ app_server <- function(input, output, session) {
     shiny::req(state)
 
     shiny::tags$span(
-      "You have selected ",
-      shiny::tags$b(state$s1),
-      " (",
-      lubridate::as_datetime(state$s1_time),
-      ") and ",
-      shiny::tags$b(state$s2),
-      " (",
-      lubridate::as_datetime(state$s2_time),
-      ") from the scheme ",
-      state$scheme,
-      " and model version ",
-      nhp_model_runs() |>
-        dplyr::filter(
-          .data[["scenario"]] == input$scenario_1,
-          .data[["create_datetime"]] == input$scenario_1_runtime
-        ) |>
-        dplyr::pull("app_version")
+      glue::glue(
+        "You have selected {shiny::tags$b(state$s1)} ",
+        "({tidy_dttm(state$s1_time)}) and {shiny::tags$b(state$s2)} ",
+        "({tidy_dttm(state$s2_time)}) from {shiny::tags$b(state$scheme)} ",
+        "(model version {shiny::tags$b(state$version)})"
+      )
     )
   })
 
@@ -327,15 +314,12 @@ app_server <- function(input, output, session) {
       local_data_flag = load_local_data
     )
 
-  mod_summary_server("summary1", processed = processed)
-  mod_los_server("los1", processed = processed)
-  mod_waterfall_server("waterfall1", processed = processed)
-  mod_activity_avoidance_impact_server(
-    "activity_avoidance1",
-    processed = processed
-  )
-  mod_efficiencies_impact_server("efficiencies1", processed = processed)
-  mod_p10_p90_bar_server("p10p90_bar1", processed = processed)
-  mod_beeswarm_server("beeswarm1", processed = processed)
-  mod_ecdf_server("ecdf1", processed = processed)
+  mod_summary_server("summary1", processed)
+  mod_los_server("los1", processed)
+  mod_waterfall_server("waterfall1", processed)
+  mod_activity_avoidance_impact_server("activity_avoidance1", processed)
+  mod_efficiencies_impact_server("efficiencies1", processed)
+  mod_p10_p90_bar_server("p10p90_bar1", processed)
+  mod_beeswarm_server("beeswarm1", processed)
+  mod_ecdf_server("ecdf1", processed)
 }

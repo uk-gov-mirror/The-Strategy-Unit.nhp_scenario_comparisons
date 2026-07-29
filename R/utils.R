@@ -30,6 +30,22 @@ make_scheme_name <- function(
   scheme_string
 }
 
+#' Add scenario column safely, handling NULL results
+#' @param data Data frame or NULL from get_model_run_distribution
+#' @param scenario_name Character. Name of the scenario to add
+#' @return Tibble with scenario column, or empty tibble if input is NULL
+#' @export
+add_scenario_safe <- function(data, scenario_name) {
+  if (is.null(data)) {
+    return(tibble::tibble(
+      value = numeric(),
+      variant = character(),
+      scenario = scenario_name
+    ))
+  }
+  data |> dplyr::mutate(scenario = scenario_name)
+}
+
 
 bold_red <- \(x) paste0("<p style='color:red;'><strong>", x, "</strong></p>")
 
@@ -46,5 +62,27 @@ swap_names <- function(vec) {
   rlang::set_names(names(vec), vec)
 }
 
+tidy_dttm <- \(x) sub("Z", "", sub("T", " ", x))
+
+get_pods <- \(x) x[["default"]][["pod"]]
+
+is_not_null <- \(x) !is.null(x)
 
 pull_unique <- \(df, col) unique(df[[col]])
+
+uppercase_init <- \(x) sub("^([[:alpha:]])(.+)", "\\U\\1\\E\\2", x, perl = TRUE)
+
+
+error_on_zero_rows <- function(df) {
+  if (nrow(df) == 0) {
+    stop("Table has zero rows")
+  } else {
+    df
+  }
+}
+
+require_rows <- \(x) {
+  shiny::req(x)
+  shiny::req(nrow(x) > 0)
+  x
+}

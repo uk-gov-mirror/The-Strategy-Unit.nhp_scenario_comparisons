@@ -38,11 +38,10 @@ mod_efficiencies_impact_server <- function(id, processed) {
 
       filter2_values <- df() |>
         dplyr::filter(
-          .data$activity_type == input$filter1,
-          .data$measure != "admissions"
+          .data[["activity_type"]] == input$filter1,
+          .data[["measure"]] != "admissions"
         ) |>
-        dplyr::pull(.data$measure) |>
-        unique()
+        pull_unique("measure")
 
       filter2_choices <- measure_pretty_names[
         measure_pretty_names %in% filter2_values

@@ -43,8 +43,8 @@ plot_individual_change_factors <- function(
     individual_change_factors,
     change_factor,
     "#f9bf07",
-    snakecase::to_title_case(change_factor),
-    snakecase::to_title_case(measure)
+    stringr::str_to_title(change_factor),
+    stringr::str_to_title(measure)
   )
 }
 

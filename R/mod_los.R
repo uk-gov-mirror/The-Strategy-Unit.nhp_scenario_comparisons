@@ -12,9 +12,7 @@ mod_los_server <- function(id, processed) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$data_combine) #takes data_combine from processed
-
-    # could dynamically create UI here, based on the variables found within df?
+    df <- shiny::reactive(processed()$los_data_combined)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -25,7 +23,7 @@ mod_los_server <- function(id, processed) {
           shiny::selectInput(
             ns("filter1"),
             "Point of Delivery",
-            choices = unique(df()$pod_name)
+            choices = pull_unique(df(), "pod_name")
           ),
           shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
         )
@@ -36,9 +34,8 @@ mod_los_server <- function(id, processed) {
       shiny::req(df(), input$filter1)
 
       filter2_choices <- df() |>
-        dplyr::filter(.data$pod_name == input$filter1) |>
-        dplyr::pull(.data$measure) |>
-        unique() |>
+        dplyr::filter(.data[["pod_name"]] == input$filter1) |>
+        pull_unique("measure") |>
         stringr::str_to_title()
 
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
@@ -47,18 +44,7 @@ mod_los_server <- function(id, processed) {
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1, input$filter2)
-
-        create_bar_plot_los(
-          df(),
-          input$filter1,
-          input$filter2,
-          glue::glue(
-            input$filter1,
-            input$filter2,
-            "- Length of Stay Comparison",
-            .sep = " "
-          )
-        )
+        create_los_bar_chart(df(), input$filter1, input$filter2)
       },
       res = 100,
     )
