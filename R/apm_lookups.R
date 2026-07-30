@@ -1,4 +1,4 @@
-get_apm_lookup <- function() {
+get_full_apm_lookup <- function() {
   yaml_data <- possibly_read_pods_lookup()
   msg <- "Unable to read POD lookup file from GitHub"
   azkit::check_that(yaml_data, is_not_null, msg)
@@ -6,7 +6,25 @@ get_apm_lookup <- function() {
     purrr::pluck("default", "pod_measures") |>
     purrr::map(list_to_tbl) |>
     purrr::list_rbind(names_to = "activity_type") |>
-    dplyr::mutate(dplyr::across(!"measure", forcats::fct_inorder))
+    dplyr::mutate(
+      dplyr::across(tidyselect::ends_with("label"), forcats::fct_inorder)
+    )
+}
+
+
+get_condensed_apm_lookup <- function() {
+  get_full_apm_lookup() |>
+    dplyr::filter_out(.data[["activity_type"]] == "aae") |>
+    dplyr::add_row(
+      activity_type = "aae",
+      activity_type_label = "A&E",
+      pod = "aae",
+      pod_label = "A&E Arrivals",
+      measure = "arrivals"
+    ) |>
+    dplyr::mutate(
+      dplyr::across(tidyselect::ends_with("label"), forcats::fct_inorder)
+    )
 }
 
 

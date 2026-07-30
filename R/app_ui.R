@@ -5,7 +5,7 @@
 #'
 #' @import shinyjs
 #' @import htmltools
-app_ui = function(request) {
+app_ui <- function(request) {
   bslib::page_sidebar(
     shinyjs::useShinyjs(),
     shinybusy::add_busy_spinner(position = "bottom-right"),
@@ -84,7 +84,7 @@ app_ui = function(request) {
         )
       ),
       shiny::tabPanel(
-        "View comparison",
+        "View comparisons",
         bslib::card(
           #bslib::card_header("Result"),
           shiny::uiOutput("result_text"),

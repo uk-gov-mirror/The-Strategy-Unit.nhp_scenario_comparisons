@@ -204,23 +204,23 @@ app_server <- function(input, output, session) {
   shiny::observeEvent(input$render_plot, {
     shiny::req(
       nhp_model_runs(),
-      input$scenario_1,
-      input$scenario_1_runtime,
-      input$scenario_2,
-      input$scenario_2_runtime
+      input$scenario1,
+      input$scenario1_dttm,
+      input$scenario2,
+      input$scenario2_dttm
     )
     app_version <- nhp_model_runs() |>
       dplyr::filter(
-        .data[["scenario"]] == input$scenario_1,
-        .data[["create_datetime"]] == input$scenario_1_runtime
+        .data[["scenario"]] == input$scenario1,
+        .data[["create_datetime"]] == input$scenario1_dttm
       ) |>
       dplyr::pull("app_version")
 
     last_render(list(
-      s1 = input$scenario_1,
-      s1_time = input$scenario_1_runtime,
-      s2 = input$scenario_2,
-      s2_time = input$scenario_2_runtime,
+      s1 = input$scenario1,
+      s1_dttm = input$scenario1_dttm,
+      s2 = input$scenario2,
+      s2_dttm = input$scenario2_dttm,
       scheme = input$selected_scheme,
       version = app_version
     ))
@@ -233,8 +233,8 @@ app_server <- function(input, output, session) {
     shiny::tags$span(
       glue::glue(
         "You have selected {shiny::tags$b(state$s1)} ",
-        "({tidy_dttm(state$s1_time)}) and {shiny::tags$b(state$s2)} ",
-        "({tidy_dttm(state$s2_time)}) from {shiny::tags$b(state$scheme)} ",
+        "({tidy_dttm(state$s1_dttm)}) and {shiny::tags$b(state$s2)} ",
+        "({tidy_dttm(state$s2_dttm)}) from {shiny::tags$b(state$scheme)} ",
         "(model version {shiny::tags$b(state$version)})"
       )
     )
@@ -272,10 +272,10 @@ app_server <- function(input, output, session) {
       # no render yet
 
       # detect if selections have changed since last render
-      changed <- state$s1 != input$scenario_1 ||
-        state$s1_time != input$scenario_1_runtime ||
-        state$s2 != input$scenario_2 ||
-        state$s2_time != input$scenario_2_runtime
+      changed <- state$s1 != input$scenario1 ||
+        state$s1_dttm != input$scenario1_dttm ||
+        state$s2 != input$scenario2 ||
+        state$s2_dttm != input$scenario2_dttm
 
       if (changed) {
         warning_text <- c(
@@ -297,29 +297,29 @@ app_server <- function(input, output, session) {
     }
   })
 
-  processed <-
+  processed_data <-
     mod_processing_server(
       "processing1",
       result_sets = nhp_model_runs(),
       selections = selections,
       scenario_selections = shiny::reactive(
         list(
-          scenario_1 = input$scenario_1,
-          scenario_1_runtime = input$scenario_1_runtime,
-          scenario_2 = input$scenario_2,
-          scenario_2_runtime = input$scenario_2_runtime
+          scenario1 = input$scenario1,
+          scenario1_dttm = input$scenario1_dttm,
+          scenario2 = input$scenario2,
+          scenario2_dttm = input$scenario2_dttm
         )
       ),
       trigger = shiny::reactive(input$render_plot),
       local_data_flag = load_local_data
     )
 
-  mod_summary_server("summary1", processed)
-  mod_los_server("los1", processed)
-  mod_waterfall_server("waterfall1", processed)
-  mod_activity_avoidance_impact_server("activity_avoidance1", processed)
-  mod_efficiencies_impact_server("efficiencies1", processed)
-  mod_p10_p90_bar_server("p10p90_bar1", processed)
-  mod_beeswarm_server("beeswarm1", processed)
-  mod_ecdf_server("ecdf1", processed)
+  mod_summary_server("summary1", processed_data)
+  mod_los_server("los1", processed_data)
+  mod_waterfall_server("waterfall1", processed_data)
+  mod_activity_avoidance_impact_server("activity_avoidance1", processed_data)
+  mod_efficiencies_impact_server("efficiencies1", processed_data)
+  mod_p10_p90_bar_server("p10p90_bar1", processed_data)
+  mod_beeswarm_server("beeswarm1", processed_data)
+  mod_ecdf_server("ecdf1", processed_data)
 }

@@ -9,11 +9,12 @@ mod_p10_p90_bar_ui <- function(id) {
   )
 }
 
-mod_p10_p90_bar_server <- function(id, processed) {
+mod_p10_p90_bar_server <- function(id, processed_data) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$data_distribution_summary)
+    df <- shiny::reactive(processed_data()$principal_pi_data)
+    full_apm_lookup <- shiny::reactive(processed_data()$full_apm_lookup)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -22,35 +23,33 @@ mod_p10_p90_bar_server <- function(id, processed) {
         shiny::tags$div(
           style = "display: flex; gap: 15px;",
           shiny::selectInput(
-            ns("category"),
-            "Activity Type",
-            choices = names(pod_categories)
-          ),
-          shiny::selectInput(
             ns("filter1"),
-            "Point of Delivery",
-            choices = NULL # will be filled dynamically
-          )
+            "Activity type",
+            choices = c("Inpatients", "Outpatients", "A&E")
+          ),
+          shiny::selectInput(ns("filter2"), "Point of Delivery", choices = NULL)
         )
       )
     })
 
-    shiny::observeEvent(input$category, {
-      shiny::req(input$category, df())
+    shiny::observe({
+      shiny::req(df(), full_apm_lookup(), input$filter1)
 
-      available <- pull_unique(df(), "pod_label")
+      label_lookup <- full_apm_lookup() |>
+        dplyr::mutate(
+          dplyr::across("activity_type_label", \(x) sub("s$", "", x))
+        ) |>
+        dplyr::filter(.data[["activity_type_label"]] == input$filter1)
 
-      shiny::updateSelectInput(
-        session,
-        "filter1",
-        choices = available
-      )
+      filter2_choices <- pull_unique(label_lookup, "pod_label")
+
+      shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })
 
     output$plot <- shiny::renderPlot(
       {
-        shiny::req(df(), input$filter1)
-        create_distribution_bar_chart(df(), input$filter1)
+        shiny::req(df(), input$filter1, input$filter2)
+        create_principal_pi_bar_chart(df(), input$filter1, input$filter2)
       },
       res = 100,
     )

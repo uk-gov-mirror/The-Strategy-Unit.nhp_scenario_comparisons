@@ -8,13 +8,11 @@ mod_summary_ui <- function(id) {
   )
 }
 
-mod_summary_server <- function(id, processed) {
+mod_summary_server <- function(id, processed_data) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$data) #takes data from processed
-
-    # could dynamically create UI here, based on the variables found within df?
+    df <- shiny::reactive(processed_data()$summary_data)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -23,29 +21,18 @@ mod_summary_server <- function(id, processed) {
         shiny::tags$div(
           style = "display: flex; gap: 15px;",
           shiny::selectInput(
-            ns("filter1"),
+            ns("filter"),
             "Activity Type",
-            choices = pull_unique(df(), "activity_type")
-          ),
-          shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
+            choices = pull_unique(df(), "activity_type_label")
+          )
         )
       )
     })
 
-    shiny::observe({
-      shiny::req(df(), input$filter1)
-
-      filter2_choices <- df() |>
-        dplyr::filter(.data[["activity_type"]] == input$filter1) |>
-        pull_unique("measure")
-
-      shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
-    })
-
     output$plot <- shiny::renderPlot(
       {
-        shiny::req(df(), input$filter1, input$filter2)
-        create_summary_bar_plot(df(), input$filter1, input$filter2)
+        shiny::req(df(), input$filter)
+        create_summary_bar_chart(df(), input$filter1)
       },
       res = 100,
     )

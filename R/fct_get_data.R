@@ -1,32 +1,3 @@
-read_results <- function(
-  results_metadata_tbl,
-  dataset,
-  scenario,
-  create_datetime
-) {
-  token <- azkit::get_auth_token()
-  if (!token$validate()) {
-    token$refresh()
-  }
-  results_container_name <- Sys.getenv("AZ_STORAGE_CONTAINER_RESULTS")
-  results_cont <- azkit::get_container(results_container_name, token = token)
-
-  filtered_tbl <- results_metadata_tbl |>
-    shiny::req() |>
-    dplyr::filter(
-      .data[["dataset"]] == .env[["dataset"]],
-      .data[["scenario"]] == .env[["scenario"]],
-      .data[["create_datetime"]] == .env[["create_datetime"]]
-    ) |>
-    require_rows()
-  results_dir <- filtered_tbl[["aggregated_results_path"]]
-  app_version <- filtered_tbl[["app_version"]]
-
-  reskit::read_results_parquet_files(results_cont, results_dir) |>
-    shim_results(app_version)
-}
-
-
 read_azure_results <- function(results_dir) {
   token <- azkit::get_auth_token()
   if (!token$validate()) {
@@ -123,43 +94,4 @@ add_outputs_app_link <- function(results_metadata_tbl) {
 
 possibly_add_outputs_app_link <- function(...) {
   purrr::possibly(add_outputs_app_link, tibble::tibble())(...)
-}
-
-
-get_principal_change_factors <- function(r, activity_type, sites) {
-  stopifnot(
-    "Invalid activity_type" = activity_type %in% c("aae", "ip", "op")
-  )
-
-  r$results$step_counts |>
-    dplyr::filter(.data$activity_type == .env$activity_type) |>
-    dplyr::select(-tidyselect::where(is.list)) |>
-    dplyr::mutate(dplyr::across("strategy", \(.x) {
-      tidyr::replace_na(.x, "-")
-    })) |>
-    trust_site_aggregation(sites)
-}
-
-trust_site_aggregation <- function(data, sites) {
-  data_filtered <- if (length(sites) == 0) {
-    data
-  } else {
-    dplyr::filter(data, .data$sitetret %in% sites)
-  }
-
-  data_filtered |>
-    dplyr::group_by(
-      dplyr::across(
-        c(
-          tidyselect::where(is.character),
-          tidyselect::where(is.factor),
-          tidyselect::any_of(c("model_run", "year")),
-          -"sitetret"
-        )
-      )
-    ) |>
-    dplyr::summarise(
-      dplyr::across(tidyselect::where(is.numeric), \(.x) sum(.x, na.rm = TRUE)),
-      .groups = "drop"
-    )
 }

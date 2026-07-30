@@ -8,11 +8,12 @@ mod_los_ui <- function(id) {
   )
 }
 
-mod_los_server <- function(id, processed) {
+mod_los_server <- function(id, processed_data) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$los_data_combined)
+    df <- shiny::reactive(processed_data()$los_data)
+    cond_apm_lookup <- shiny::reactive(processed_data()$cond_apm_lookup)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -31,12 +32,15 @@ mod_los_server <- function(id, processed) {
     })
 
     shiny::observe({
-      shiny::req(df(), input$filter1)
+      shiny::req(df(), cond_apm_lookup(), input$filter1)
 
-      filter2_choices <- df() |>
-        dplyr::filter(.data[["pod_name"]] == input$filter1) |>
-        pull_unique("measure") |>
-        stringr::str_to_title()
+      label_lookup <- cond_apm_lookup() |>
+        dplyr::mutate(
+          measure_label = create_measure_label(.data[["measure"]])
+        ) |>
+        dplyr::filter(.data[["pod_label"]] == input$filter1)
+
+      filter2_choices <- pull_unique(label_lookup, "measure_label")
 
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })

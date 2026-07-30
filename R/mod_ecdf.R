@@ -15,24 +15,9 @@ mod_ecdf_ui <- function(id) {
   )
 }
 
-mod_ecdf_server <- function(id, processed) {
+mod_ecdf_server <- function(id, processed_data) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
-
-    scn1 <- shiny::reactive(processed()$scenario_1_name)
-    scn2 <- shiny::reactive(processed()$scenario_2_name)
-    beeswarm_data1a <- shiny::reactive(processed()$beeswarm_data1a)
-    beeswarm_data1b <- shiny::reactive(processed()$beeswarm_data1b)
-    beeswarm_data1c <- shiny::reactive(processed()$beeswarm_data1c)
-    beeswarm_data1d <- shiny::reactive(processed()$beeswarm_data1d)
-    beeswarm_data1e <- shiny::reactive(processed()$beeswarm_data1e)
-    beeswarm_data1f <- shiny::reactive(processed()$beeswarm_data1f)
-    beeswarm_data2a <- shiny::reactive(processed()$beeswarm_data2a)
-    beeswarm_data2b <- shiny::reactive(processed()$beeswarm_data2b)
-    beeswarm_data2c <- shiny::reactive(processed()$beeswarm_data2c)
-    beeswarm_data2d <- shiny::reactive(processed()$beeswarm_data2d)
-    beeswarm_data2e <- shiny::reactive(processed()$beeswarm_data2e)
-    beeswarm_data2f <- shiny::reactive(processed()$beeswarm_data2f)
 
     label_lookup <- shiny::reactive({
       get_apm_lookup() |>
@@ -41,8 +26,11 @@ mod_ecdf_server <- function(id, processed) {
         }))
     })
 
+    df <- shiny::reactive(processed_data()$principal_pi_data)
+    full_apm_lookup <- shiny::reactive(processed_data()$full_apm_lookup)
+
     output$filters_ui <- shiny::renderUI({
-      shiny::req(processed())
+      shiny::req(processed_data())
 
       shiny::tagList(
         shiny::tags$div(
@@ -69,7 +57,7 @@ mod_ecdf_server <- function(id, processed) {
 
     output$plot <- shiny::renderPlot(
       {
-        shiny::req(processed(), scn1(), scn2(), input$filter1, input$filter2)
+        shiny::req(processed(), input$filter1, input$filter2)
 
         result_1 <- if (input$filter1 == "Inpatients") {
           if (input$filter2 == "Admissions") {

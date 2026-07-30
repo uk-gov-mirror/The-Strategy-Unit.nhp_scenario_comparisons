@@ -47,6 +47,21 @@ add_scenario_safe <- function(data, scenario_name) {
 }
 
 
+core_chart_theme <- function() {
+  ggplot2::theme(
+    text = ggplot2::element_text(family = "Segoe UI", size = 12),
+    plot.title = ggplot2::element_text(size = 14, hjust = 0.5),
+    plot.title.position = "plot",
+    legend.text = ggplot2::element_text(face = "bold", hjust = 0.1),
+    legend.position = "bottom",
+    strip.clip = "off"
+  )
+}
+
+
+create_measure_label <- \(x) uppercase_init(sub("dd", "d D", sub("_", "-", x)))
+
+
 bold_red <- \(x) paste0("<p style='color:red;'><strong>", x, "</strong></p>")
 
 # fmt: skip
