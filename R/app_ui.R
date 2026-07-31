@@ -5,7 +5,7 @@
 #'
 #' @import shinyjs
 #' @import htmltools
-app_ui = function(request) {
+app_ui <- function(request) {
   bslib::page_sidebar(
     shinyjs::useShinyjs(),
     shinybusy::add_busy_spinner(position = "bottom-right"),
