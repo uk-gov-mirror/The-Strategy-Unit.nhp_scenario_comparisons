@@ -22,6 +22,7 @@ mat_combos_tbl <- cond_apm_lookup |>
 mat_combos_tbl_full <- full_apm_lookup |>
   dplyr::distinct(dplyr::pick(c("measure", "activity_type")))
 at_lookup <- cond_apm_lookup |>
+  dplyr::mutate(dplyr::across("activity_type_label", \(x) sub("s$", "", x))) |>
   dplyr::distinct(dplyr::pick(c("activity_type", "activity_type_label")))
 
 
@@ -136,7 +137,7 @@ create_los_bar_chart(los_data, "Elective Admission", "Admissions")
 pt_compile_cf_data <- function(...) {
   purrr::partial(
     reskit::compile_change_factor_data,
-    pod_lookup = capm_lookup2,
+    pod_lookup = cond_apm_lookup2,
     tpma_lookup = tpma_lookup
   )(...)
 }
@@ -167,7 +168,7 @@ create_waterfall_chart(waterfall_data, "Inpatient", "Admissions")
 pt_compile_icf_data <- function(...) {
   purrr::partial(
     reskit::compile_indiv_change_factor_data,
-    pod_lookup = capm_lookup2,
+    pod_lookup = cond_apm_lookup2,
     tpma_lookup = tpma_lookup
   )(...)
 }
@@ -185,8 +186,20 @@ impact_data <- mat_combos_tbl |>
     !!scenario2_name := purrr::pmap(mat_combos_tbl, pt_compile_icf_data2)
   ) |>
   # listify_cfmat_scenarios_tbl()
-  unnest_cfmat_scenarios_tbl()
+  unnest_cfmat_scenarios_tbl() |>
+  dplyr::left_join(at_lookup, "activity_type")
 
+# Check production of Activity Avoidance Individual Change Factors chart
+
+create_impact_chart(
+  impact_data,
+  "activity_avoidance",
+  "Inpatient",
+  "Admissions"
+)
+
+# Check production of Efficiencies Individual Change Factors chart
+create_impact_chart(impact_data, "efficiencies", "Inpatient", "Bed Days")
 
 # Prepare data for p10/p90 chart
 
@@ -201,7 +214,7 @@ principal_pi_data <- list(
 
 create_principal_pi_bar_chart(
   principal_pi_data,
-  "Inpatient",
+  "Inpatients",
   "Elective Admission"
 )
 

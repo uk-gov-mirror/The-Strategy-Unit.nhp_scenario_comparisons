@@ -26,7 +26,7 @@ mod_efficiencies_impact_server <- function(id, processed) {
           shiny::selectInput(
             ns("filter1"),
             "Activity Type",
-            choices = activity_type_pretty_names
+            choices = c("Inpatients", "Outpatients", "A&E")
           ),
           shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
         )
@@ -36,16 +36,12 @@ mod_efficiencies_impact_server <- function(id, processed) {
     shiny::observe({
       shiny::req(df(), input$filter1)
 
-      filter2_values <- df() |>
+      filter2_choiced <- df() |>
         dplyr::filter(
           .data[["activity_type"]] == input$filter1,
           .data[["measure"]] != "admissions"
         ) |>
         pull_unique("measure")
-
-      filter2_choices <- measure_pretty_names[
-        measure_pretty_names %in% filter2_values
-      ]
 
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })
@@ -53,36 +49,25 @@ mod_efficiencies_impact_server <- function(id, processed) {
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1, input$filter2)
-        shiny::validate(
-          shiny::need(!is.null(df()), message = "No data available"),
-          shiny::need(nrow(df()) > 0, message = "No data available")
-        )
-        # Add validation for filtered data
-        filtered_data <- df() |>
-          dplyr::filter(
-            .data$change_factor == "efficiencies",
-            .data$activity_type == input$filter1,
-            .data$measure == input$filter2
-          )
-        shiny::validate(
-          shiny::need(
-            nrow(filtered_data) > 0,
-            message = "No efficiency TPMAs impact this activity type and measure"
-          )
-        )
+        # shiny::validate(
+        #   shiny::need(!is.null(df()), message = "No data available"),
+        #   shiny::need(nrow(df()) > 0, message = "No data available")
+        # )
+        # # Add validation for filtered data
+        # filtered_data <- df() |>
+        #   dplyr::filter(
+        #     .data$change_factor == "efficiencies",
+        #     .data$activity_type == input$filter1,
+        #     .data$measure == input$filter2
+        #   )
+        # shiny::validate(
+        #   shiny::need(
+        #     nrow(filtered_data) > 0,
+        #     message = "No efficiency TPMAs impact this activity type and measure"
+        #   )
+        # )
 
-        impact_bar_plot(
-          data = df(),
-          chosen_change_factor = "efficiencies",
-          chosen_activity_type = input$filter1,
-          chosen_measure = input$filter2,
-          title_text = glue::glue(
-            "{get_label(input$filter1, activity_type_pretty_names)}",
-            "{get_label(input$filter2, measure_pretty_names)}",
-            "- Impact of Individual Efficiencies TPMA Assumptions",
-            .sep = " "
-          )
-        )
+        create_impact_chart(df(), "efficiencies", input$filter1, input$filter2)
       },
       res = 100,
     )
