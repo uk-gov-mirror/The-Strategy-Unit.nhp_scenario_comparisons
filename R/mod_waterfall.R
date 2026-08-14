@@ -3,26 +3,18 @@ mod_waterfall_ui <- function(id) {
 
   shiny::tagList(
     shiny::verbatimTextOutput(ns("debug")),
-    shiny::includeMarkdown("inst/app/waterfall-text.md"),
+    htmltools::includeMarkdown("inst/app/waterfall-text.md"),
     shiny::uiOutput(ns("filters_ui")),
     shiny::plotOutput(ns("plot"))
   )
 }
 
 
-mod_waterfall_server <- function(id, processed) {
+mod_waterfall_server <- function(id, processed_data) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    df <- shiny::reactive(processed()$waterfall_data$pcfs_1) #takes waterfall_data$pcfs_1 from processed
-    df2 <- shiny::reactive(processed()$waterfall_data$pcfs_2)
-    scenario_1_name <- shiny::reactive(
-      processed()$waterfall_data$scenario_1_name
-    )
-    scenario_2_name <- shiny::reactive(
-      processed()$waterfall_data$scenario_2_name
-    )
-    # could dynamically create UI here, based on the variables found within df?
+    df <- shiny::reactive(processed_data()$waterfall_data)
 
     output$filters_ui <- shiny::renderUI({
       shiny::req(df())
@@ -33,7 +25,7 @@ mod_waterfall_server <- function(id, processed) {
           shiny::selectInput(
             ns("filter1"),
             "Activity type",
-            choices = activity_type_pretty_names
+            choices = pull_unique(df(), "activity_type_label")
           ),
           shiny::selectInput(ns("filter2"), "Measure", choices = NULL)
         )
@@ -42,40 +34,19 @@ mod_waterfall_server <- function(id, processed) {
 
     shiny::observe({
       shiny::req(df(), input$filter1)
-
-      filter2_values <- df()[[input$filter1]] |>
-        dplyr::pull(.data$measure) |>
-        unique()
-
-      filter2_choices <- measure_pretty_names[
-        measure_pretty_names %in% filter2_values
-      ]
-
+      filter2_choices <- df() |>
+        dplyr::filter(.data[["activity_type_label"]] == input$filter1) |>
+        pull_unique("measure_label")
+      shiny::freezeReactiveValue(input, "filter2")
       shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
     })
 
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1, input$filter2)
-
-        generate_waterfall_plot(
-          df(),
-          df2(),
-          scenario_1_name(),
-          scenario_2_name(),
-          activity_type = input$filter1,
-          measure = input$filter2,
-          x_label = get_label(input$filter2, measure_pretty_names),
-          y_label = "Change Factor",
-          title = glue::glue(
-            "{get_label(input$filter1, activity_type_pretty_names)}",
-            "{get_label(input$filter2, measure_pretty_names)}",
-            "- Waterfall of Change Factors",
-            .sep = " "
-          )
-        )
+        create_waterfall_chart(df(), input$filter1, input$filter2)
       },
-      res = 100,
+      res = 100
     )
   })
 }
