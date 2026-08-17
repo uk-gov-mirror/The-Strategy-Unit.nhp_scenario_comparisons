@@ -17,29 +17,37 @@ app_ui <- function(request) {
     sidebar = bslib::sidebar(
       shiny::uiOutput("warning_text"),
       title = "Scenario selection",
+      shiny::tags$p(
+        style = "font-size: 0.85em; color: #555; margin-bottom: 12px;",
+        "Select a scheme, then two comparable scenarios (same start/end year and model version). ",
+        "Greyed-out options are not available or not comparable."
+      ),
       shinyWidgets::pickerInput(
         "selected_scheme",
         "Select scheme",
-        choices = NULL
+        choices = NULL,
+        options = list(`live-search` = TRUE)
       ),
       shinyWidgets::pickerInput(
-        "scenario1",
+        "scenario_1",
         "Select Scenario 1",
+        choices = NULL,
+        options = list(`live-search` = TRUE)
+      ),
+      shiny::selectInput(
+        "scenario_1_runtime",
+        "Scenario 1 runtime",
         choices = NULL
       ),
       shinyWidgets::pickerInput(
-        "scenario1_rt",
-        "Scenario 1 Runtime",
-        choices = NULL
-      ),
-      shinyWidgets::pickerInput(
-        "scenario2",
+        "scenario_2",
         "Select Scenario 2",
-        choices = NULL
+        choices = NULL,
+        options = list(`live-search` = TRUE)
       ),
-      shinyWidgets::pickerInput(
-        "scenario2_rt",
-        "Scenario 2 Runtime",
+      shiny::selectInput(
+        "scenario_2_runtime",
+        "Scenario 2 runtime",
         choices = NULL
       ),
       shiny::actionButton("render_plot", "Render Plots", disabled = TRUE)

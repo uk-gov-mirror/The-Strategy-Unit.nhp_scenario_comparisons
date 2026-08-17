@@ -308,7 +308,7 @@ app_server <- function(input, output, session) {
           )
         )
       )
-    } else {
+    } else if (shiny::isTruthy(selections$scheme)) {
       comparable <- get_comparable_scenarios(model_runs, selections$scheme)
 
       if (nrow(comparable) == 0) {
