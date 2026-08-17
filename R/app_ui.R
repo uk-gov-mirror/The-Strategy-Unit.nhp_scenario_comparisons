@@ -29,24 +29,24 @@ app_ui <- function(request) {
         options = list(`live-search` = TRUE)
       ),
       shinyWidgets::pickerInput(
-        "scenario_1",
+        "scenario1",
         "Select Scenario 1",
         choices = NULL,
         options = list(`live-search` = TRUE)
       ),
-      shiny::selectInput(
-        "scenario_1_runtime",
+      shinyWidgets::pickerInput(
+        "scenario1_rt",
         "Scenario 1 runtime",
         choices = NULL
       ),
       shinyWidgets::pickerInput(
-        "scenario_2",
+        "scenario2",
         "Select Scenario 2",
         choices = NULL,
         options = list(`live-search` = TRUE)
       ),
-      shiny::selectInput(
-        "scenario_2_runtime",
+      shinyWidgets::pickerInput(
+        "scenario2_rt",
         "Scenario 2 runtime",
         choices = NULL
       ),

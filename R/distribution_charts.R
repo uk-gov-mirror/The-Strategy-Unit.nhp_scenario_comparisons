@@ -113,10 +113,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
       .data[["y_vals"]],
       colour = .data[["scenario"]]
     )) +
-    ggplot2::geom_step(
-      ggplot2::aes(group = .data[["scenario"]]),
-      linewidth = 1.2
-    ) +
+    ggplot2::geom_step(ggplot2::aes(group = .data[["scenario"]])) +
     ggplot2::geom_segment(
       data = line_guides,
       ggplot2::aes(
@@ -157,12 +154,11 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
     ggplot2::annotate(
       "text",
       x = baseline_value,
-      y = 0.95,
+      y = 0.5,
       label = "baseline",
       colour = "dimgrey",
       angle = 90,
-      hjust = -1,
-      vjust = -1,
+      vjust = 1,
       size = 4
     ) +
     ggplot2::scale_colour_manual(values = c("red", "blue")) +

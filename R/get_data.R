@@ -58,6 +58,9 @@ get_results_metadata <- function(allowed_datasets) {
       dplyr::if_any("app_version", \(x) x >= "v3.1" | x == "dev")
     ) |>
     error_on_zero_rows() |>
+    dplyr::add_count(.data[["dataset"]], name = "n_runs") |>
+    dplyr::filter(.data[["n_runs"]] >= 2) |>
+    dplyr::select(!"n_runs") |>
     dplyr::select(tidyselect::all_of(table_cols)) |>
     dplyr::mutate(dplyr::across("create_datetime", tidy_dttm))
 }
