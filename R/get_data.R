@@ -55,6 +55,7 @@ get_results_metadata <- function(allowed_datasets) {
   ) |>
     dplyr::filter(
       dplyr::if_any("dataset", \(x) x %in% allowed_datasets),
+      # version comparison only valid until v9!
       dplyr::if_any("app_version", \(x) x >= "v3.1" | x == "dev")
     ) |>
     error_on_zero_rows() |>
@@ -94,8 +95,4 @@ add_outputs_app_link <- function(results_metadata_tbl) {
       outputs_app = glue::glue("<a href='{outputs_url}' {t}>Launch</a> \U1F517")
     ) |>
     dplyr::select(!tidyselect::all_of(remove_cols))
-}
-
-possibly_add_outputs_app_link <- function(...) {
-  purrr::possibly(add_outputs_app_link, tibble::tibble())(...)
 }

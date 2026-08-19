@@ -37,7 +37,12 @@ mod_summary_bar_server <- function(id, processed_data) {
         dplyr::filter(.data[["activity_type_label"]] == input$filter1) |>
         pull_unique("measure")
       shiny::freezeReactiveValue(input, "filter2")
-      shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
+      shiny::updateSelectInput(
+        session,
+        inputId = "filter2",
+        choices = filter2_choices,
+        selected = filter2_choices[[1]]
+      )
     })
 
     output$plot <- shiny::renderPlot(

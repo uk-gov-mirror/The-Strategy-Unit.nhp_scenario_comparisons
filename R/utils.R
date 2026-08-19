@@ -9,6 +9,28 @@ get_comparable_scenarios <- function(model_runs, scheme) {
     dplyr::select(!"comparable_scenarios")
 }
 
+
+#' Resolve a picker selection
+#'
+#' Keeps the user's current selection if it is still valid, otherwise
+#' auto-selects the first choice when there are at most `auto_max` choices.
+#'
+#' @param current Currently selected value (usually `shiny::isolate(input$x)`).
+#' @param available Character vector of available choices.
+#' @param auto_max Maximum number of choices for which auto-selection applies.
+#' @return A length-1 character vector, or `character(0)` for no selection.
+#' @noRd
+resolve_selection <- function(current, available, auto_max = 1) {
+  if (length(current) == 1 && nzchar(current) && current %in% available) {
+    current
+  } else if (length(available) > 0 && length(available) <= auto_max) {
+    available[[1]]
+  } else {
+    character(0)
+  }
+}
+
+
 core_chart_theme <- function() {
   ggplot2::theme(
     text = ggplot2::element_text(family = "Segoe UI", size = 12),

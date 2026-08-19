@@ -7,6 +7,30 @@ mod_processing_server <- function(
   local_data_flag
 ) {
   shiny::moduleServer(id, function(input, output, session) {
+    #### LOOKUPS
+
+    # This requires a call to GitHub to retrieve a file.
+    # Run once and then pass data to reskit functions, rather than running
+    # each time a function is called
+    full_apm_lookup <- get_full_apm_lookup()
+    cond_apm_lookup <- get_condensed_apm_lookup(full_apm_lookup)
+    full_ap_lookup <- dplyr::select(full_apm_lookup, !"measure") |>
+      dplyr::distinct()
+    cond_ap_lookup <- dplyr::select(cond_apm_lookup, !"measure") |>
+      dplyr::distinct()
+    # matches reskit's get_detailed_pods()
+    full_atp_lookup <- dplyr::select(full_ap_lookup, !"activity_type")
+    atl_lookup <- full_apm_lookup |>
+      dplyr::distinct(dplyr::pick(tidyselect::starts_with(
+        "activity_type"
+      )))
+    tpma_lookup <- reskit::get_tpma_label_lookup()
+
+    # Create core table with a row for each pair of measure and
+    # activity_type, for pmapping over
+    core_mat_tbl <- full_apm_lookup |>
+      dplyr::distinct(dplyr::pick(c("measure", "activity_type")))
+
     processed_data <- shiny::eventReactive(
       trigger(),
       {
@@ -81,30 +105,6 @@ mod_processing_server <- function(
             results2 <- read_azure_results(scenario2_dir)
             shiny::incProgress(0.3)
           }
-
-          #### LOOKUPS
-
-          # This requires a call to GitHub to retrieve a file.
-          # Run once and then pass data to reskit functions, rather than running
-          # each time a function is called
-          full_apm_lookup <- get_full_apm_lookup()
-          cond_apm_lookup <- get_condensed_apm_lookup(full_apm_lookup)
-          full_ap_lookup <- dplyr::select(full_apm_lookup, !"measure") |>
-            dplyr::distinct()
-          cond_ap_lookup <- dplyr::select(cond_apm_lookup, !"measure") |>
-            dplyr::distinct()
-          # matches reskit's get_detailed_pods()
-          full_atp_lookup <- dplyr::select(full_ap_lookup, !"activity_type")
-          atl_lookup <- full_apm_lookup |>
-            dplyr::distinct(dplyr::pick(tidyselect::starts_with(
-              "activity_type"
-            )))
-          tpma_lookup <- reskit::get_tpma_label_lookup()
-
-          # Create core table with a row for each pair of measure and
-          # activity_type, for pmapping over
-          core_mat_tbl <- full_apm_lookup |>
-            dplyr::distinct(dplyr::pick(c("measure", "activity_type")))
 
           #### DATA PREPARATION
 

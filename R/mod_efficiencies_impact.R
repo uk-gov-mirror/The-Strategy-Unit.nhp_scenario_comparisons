@@ -14,11 +14,15 @@ mod_efficiencies_impact_server <- function(id, processed_data) {
     ns <- session$ns
     df <- shiny::reactive(processed_data()$icf_impact_data)
     filt_df <- shiny::reactive({
-      dplyr::filter(df(), .data[["change_factor"]] == "efficiencies")
+      df() |>
+        dplyr::filter(
+          .data[["change_factor"]] == "efficiencies",
+          .data[["measure"]] != "admissions"
+        )
     })
 
     output$filters_ui <- shiny::renderUI({
-      shiny::req(filt_df())
+      require_rows(filt_df())
 
       shiny::tagList(
         shiny::tags$div(
@@ -37,13 +41,16 @@ mod_efficiencies_impact_server <- function(id, processed_data) {
       shiny::req(filt_df(), input$filter1)
 
       filter2_choices <- filt_df() |>
-        dplyr::filter(
-          .data[["activity_type_label"]] == input$filter1,
-          .data[["measure"]] != "admissions"
-        ) |>
+        dplyr::filter(.data[["activity_type_label"]] == input$filter1) |>
         pull_unique("measure_label")
+      shiny::freezeReactiveValue(input, "filter2")
 
-      shiny::updateSelectInput(inputId = "filter2", choices = filter2_choices)
+      shiny::updateSelectInput(
+        session,
+        inputId = "filter2",
+        choices = filter2_choices,
+        selected = filter2_choices[[1]]
+      )
     })
 
     output$plot <- shiny::renderPlot(

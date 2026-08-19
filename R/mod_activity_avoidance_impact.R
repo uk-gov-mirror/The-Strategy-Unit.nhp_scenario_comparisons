@@ -38,11 +38,12 @@ mod_activity_avoidance_impact_server <- function(id, processed_data) {
       filter2_choices <- filt_df() |>
         dplyr::filter(.data[["activity_type_label"]] == input$filter1) |>
         pull_unique("measure_label")
-
+      shiny::freezeReactiveValue(input, "filter2")
       shiny::updateSelectInput(
         session,
         inputId = "filter2",
-        choices = filter2_choices
+        choices = filter2_choices,
+        selected = filter2_choices[[1]]
       )
     })
 

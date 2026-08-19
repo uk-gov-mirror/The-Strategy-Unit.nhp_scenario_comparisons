@@ -82,14 +82,14 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
   ecdf_fns <- purrr::map(ecdf_data_list, \(x) stats::ecdf(x[["value"]]))
   x_quantiles <- purrr::map(ecdf_fns, get_quantiles)
   y_vals <- purrr::map2(ecdf_data_list, ecdf_fns, \(x, y) sort(y(x[["value"]])))
-
+  y_vals_tbl <- tibble::enframe(y_vals, "scenario", "y_vals")
   summary_tbl <- ecdf_data |>
     dplyr::summarise(
       dplyr::across(c("baseline", "principal"), unique),
       x_vals = list(sort(.data[["value"]])),
       .by = "scenario"
     ) |>
-    dplyr::mutate(y_vals = y_vals)
+    dplyr::left_join(y_vals_tbl, "scenario")
 
   # data to support positioning of dashed lines indicating p10 and p90 values
   line_guides <- x_quantiles |>
@@ -104,7 +104,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
     ) |>
     tidyr::unnest_longer(c("x", "y_end"), indices_include = FALSE)
 
-  baseline_value <- unique(summary_tbl[["baseline"]])
+  baseline_value <- summary_tbl[["baseline"]][[1]] # should be 1 value
   summary_tbl |>
     dplyr::select(c("scenario", "principal", "x_vals", "y_vals")) |>
     tidyr::unnest_longer(c("x_vals", "y_vals")) |>
@@ -133,7 +133,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
       linewidth = 0.6
     ) +
     ggplot2::geom_vline(
-      ggplot2::aes(xintercept = baseline_value),
+      ggplot2::aes(xintercept = .data[["baseline"]]),
       colour = "dimgrey",
       linewidth = 1
     ) +
@@ -164,7 +164,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
     ggplot2::scale_colour_manual(values = c("red", "blue")) +
     ggplot2::scale_linetype_identity() +
     ggplot2::scale_x_continuous(
-      breaks = scales::pretty_breaks(8),
+      breaks = scales::breaks_pretty(8),
       labels = scales::label_comma(),
       expand = ggplot2::expansion(c(0.005, 0)),
       limits = c(min_x_value, NA)
