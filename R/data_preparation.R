@@ -56,6 +56,8 @@ prepare_principal_pi_data <- function(
     purrr::map(pt_compile_principal_pi_data) |>
     rlang::set_names(c(scenario1_name, scenario2_name)) |>
     purrr::list_rbind(names_to = "scenario") |>
+    # If https://github.com/The-Strategy-Unit/nhp_reskit/issues/185
+    # gets resolved and merged we should be able to ditch this step
     split_on_space("pod_label", names = c("activity_type_label", "pod_label"))
 }
 
