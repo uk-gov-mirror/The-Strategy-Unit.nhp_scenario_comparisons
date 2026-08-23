@@ -1,11 +1,12 @@
-create_beeswarm_chart <- function(beeswarm_data, activity_type, measure) {
+create_beeswarm_chart <- function(beeswarm_data, at, measure, show_zero) {
   beeswarm_data <- beeswarm_data |>
     dplyr::filter(
-      dplyr::if_any("activity_type_label", \(x) x == {{ activity_type }}),
+      dplyr::if_any("activity_type_label", \(x) x == {{ at }}),
       dplyr::if_any("measure_label", \(x) x == {{ measure }})
     )
-  title <- glue::glue("{activity_type} {measure} - Distribution of Model Runs")
+  title <- glue::glue("{at} {measure} - Distribution of Model Runs")
   min_x_value <- min(beeswarm_data[["value"]], beeswarm_data[["baseline"]])
+  min_x_value <- ifelse(show_zero, 0, min_x_value)
 
   summary_tbl <- beeswarm_data |>
     dplyr::summarise(
@@ -40,11 +41,11 @@ create_beeswarm_chart <- function(beeswarm_data, activity_type, measure) {
       colour = "grey50",
       linewidth = 1.2
     ) +
-    ggplot2::expand_limits(x = min_x_value) +
     ggplot2::scale_colour_manual(values = c("red", "blue")) +
     ggplot2::scale_x_continuous(
       breaks = scales::breaks_pretty(8),
       labels = scales::label_comma(),
+      limits = c(min_x_value, NA),
       expand = ggplot2::expansion(0.01)
     ) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(0.15)) +
@@ -61,7 +62,7 @@ create_beeswarm_chart <- function(beeswarm_data, activity_type, measure) {
 }
 
 
-create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
+create_ecdf_chart <- function(ecdf_data, activity_type, measure, show_zero) {
   chart_info <- "S-curve\n(empirical cumulative distribution function)"
   title_text <- glue::glue("{activity_type} {tolower(measure)} - {chart_info}")
 
@@ -71,6 +72,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
       dplyr::if_any("measure_label", \(x) x == {{ measure }})
     )
   min_x_value <- min(ecdf_data[["value"]], ecdf_data[["baseline"]])
+  min_x_value <- ifelse(show_zero, 0, min_x_value)
 
   ecdf_data_list <- ecdf_data |>
     tidyr::nest(.by = "scenario") |>
@@ -133,7 +135,7 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
       linewidth = 0.6
     ) +
     ggplot2::geom_vline(
-      ggplot2::aes(xintercept = .data[["baseline"]]),
+      xintercept = baseline_value,
       colour = "dimgrey",
       linewidth = 1
     ) +
@@ -166,13 +168,12 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure) {
     ggplot2::scale_x_continuous(
       breaks = scales::breaks_pretty(8),
       labels = scales::label_comma(),
-      expand = ggplot2::expansion(c(0.005, 0)),
-      limits = c(min_x_value, NA)
+      limits = c(min_x_value, NA),
+      expand = ggplot2::expansion(0.01)
     ) +
     ggplot2::scale_y_continuous(
       breaks = seq(0, 1, 0.1),
-      labels = scales::label_percent(),
-      expand = ggplot2::expansion(0)
+      labels = scales::label_percent()
     ) +
     ggplot2::labs(title = title_text, x = measure, y = "% of model runs") +
     core_chart_theme()

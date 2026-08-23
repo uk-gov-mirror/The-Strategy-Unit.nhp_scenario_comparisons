@@ -21,6 +21,11 @@ app_server <- function(input, output, session) {
       all_schemes,
       nhp_model_runs()[["dataset"]]
     )
+    unavailable_schemes <- vctrs::vec_set_difference(
+      all_schemes,
+      nhp_model_runs()[["dataset"]]
+    )
+    all_schemes <- c(available_schemes, unavailable_schemes)
     scheme_unavailable <- !(all_schemes %in% available_schemes)
     selected_scheme <- shiny::isolate(input$selected_scheme)
     keep <- shiny::isTruthy(selected_scheme) &&
@@ -110,6 +115,8 @@ app_server <- function(input, output, session) {
     all_scenarios <- selections$scheme_scenarios |>
       dplyr::setdiff(selections$main_scenario) |>
       pull_unique("scenario")
+    unavailable_scenarios <- setdiff(all_scenarios, comparable_scenarios)
+    all_scenarios <- c(comparable_scenarios, unavailable_scenarios)
     scenario_unavailable <- !(all_scenarios %in% comparable_scenarios)
 
     shinyWidgets::updatePickerInput(
@@ -277,6 +284,7 @@ app_server <- function(input, output, session) {
         NULL
       }
     })
+  })
 
   processed_data <- mod_processing_server(
     id = "processing",

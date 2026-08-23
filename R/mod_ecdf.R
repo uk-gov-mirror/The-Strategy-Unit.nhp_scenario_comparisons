@@ -6,6 +6,11 @@ mod_ecdf_ui <- function(id) {
     htmltools::includeMarkdown("inst/app/probabilistic-model-note.md"),
     htmltools::includeMarkdown("inst/app/s-curve-note.md"),
     shiny::uiOutput(ns("filters_ui")),
+    shiny::checkboxInput(
+      ns("show_zero"),
+      "Extend x-axis to zero?",
+      value = FALSE
+    ),
     shiny::plotOutput(ns("plot"))
   )
 }
@@ -49,7 +54,7 @@ mod_ecdf_server <- function(id, processed_data) {
     output$plot <- shiny::renderPlot(
       {
         shiny::req(df(), input$filter1, input$filter2)
-        create_ecdf_chart(df(), input$filter1, input$filter2)
+        create_ecdf_chart(df(), input$filter1, input$filter2, input$show_zero)
       },
       res = 100
     )
