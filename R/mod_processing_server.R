@@ -87,7 +87,7 @@ mod_processing_server <- function(
           shiny::incProgress(0.1)
           shiny::req(all(lengths(c(scenario1_dir, scenario2_dir)) == 1))
 
-          if (local_data_flag) {
+          if (use_local_data) {
             list_dirs <- purrr::partial(
               dir,
               full.names = TRUE,
@@ -98,6 +98,7 @@ mod_processing_server <- function(
             rds_path2 <- grepv(scenario2_name, rds_paths)
             results1 <- readr::read_rds(rds_path1)
             results2 <- readr::read_rds(rds_path2)
+            shiny::incProgress(0.6)
           } else {
             results1 <- read_azure_results(scenario1_dir)
             shiny::incProgress(0.3)
@@ -105,8 +106,6 @@ mod_processing_server <- function(
             results2 <- read_azure_results(scenario2_dir)
             shiny::incProgress(0.3)
           }
-
-          #### DATA PREPARATION
 
           # Prepare data for Summary chart
           summary_data <- prepare_summary_data(

@@ -28,7 +28,7 @@ Imports:
     htmltools,
     purrr,
     readr,
-    reskit (== 1.1.0),
+    reskit (>= 1.1.9),
     rlang,
     scales,
     shiny,

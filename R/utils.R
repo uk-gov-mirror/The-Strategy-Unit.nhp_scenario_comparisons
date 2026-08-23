@@ -1,6 +1,5 @@
 get_comparable_scenarios <- function(model_runs, scheme) {
   model_runs |>
-    dplyr::filter(.data[["dataset"]] %in% .env[["scheme"]]) |>
     dplyr::mutate(
       comparable_scenarios = dplyr::n(),
       .by = c("start_year", "end_year", "app_version")

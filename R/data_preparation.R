@@ -135,11 +135,11 @@ prepare_los_data <- function(
   results2,
   scenario1_name,
   scenario2_name,
-  pod_lookup
+  cond_ap_lookup
 ) {
   pt_compile_principal_los_data <- purrr::partial(
     reskit::compile_principal_los_data,
-    pod_lookup = pod_lookup
+    pod_lookup = cond_ap_lookup
   )
   admissions_data <- list(results1, results2) |>
     purrr::map(\(x) pt_compile_principal_los_data(x, "admissions"))
@@ -164,11 +164,11 @@ prepare_summary_data <- function(
   results2,
   scenario1_name,
   scenario2_name,
-  pod_lookup
+  cond_ap_lookup
 ) {
   pt_compile_principal_pod_data <- purrr::partial(
     reskit::compile_principal_pod_data,
-    pod_lookup = pod_lookup
+    pod_lookup = cond_ap_lookup
   )
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
@@ -182,10 +182,6 @@ prepare_summary_data <- function(
       dplyr::across("activity_type_label", \(x) {
         dplyr::if_else(grepl("^Inp", x), x, paste0(x, " Activity"))
       })
-    ) |>
-    split_on_space(
-      "activity_type_label",
-      names = c("activity_type_label", "measure")
     ) |>
     dplyr::mutate(
       dplyr::across("pod_label", \(x) {
