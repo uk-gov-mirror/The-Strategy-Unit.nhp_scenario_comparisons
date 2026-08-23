@@ -19,6 +19,10 @@ prepare_beeswarm_data <- function(
     pt_compile_distr_data,
     results = results2
   )
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   core_mat_tbl |>
     dplyr::mutate(
       !!scenario1_name := purrr::pmap(core_mat_tbl, pt_compile_dst_data1),
@@ -44,6 +48,10 @@ prepare_principal_pi_data <- function(
     value_type = "principal",
     pod_lookup = full_atp_lookup
   )
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   list(results1, results2) |>
     purrr::map(pt_compile_principal_pi_data) |>
     rlang::set_names(c(scenario1_name, scenario2_name)) |>
@@ -75,6 +83,10 @@ prepare_icf_impact_data <- function(
     pt_compile_icf_data,
     results = results2
   )
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   core_mat_tbl |>
     dplyr::mutate(
       !!scenario1_name := purrr::pmap(core_mat_tbl, pt_compile_icf_data1),
@@ -103,6 +115,10 @@ prepare_waterfall_data <- function(
   )
   pt_compile_cf_data1 <- purrr::partial(pt_compile_cf_data, results = results1)
   pt_compile_cf_data2 <- purrr::partial(pt_compile_cf_data, results = results2)
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   core_mat_tbl |>
     dplyr::mutate(
       !!scenario1_name := purrr::pmap(core_mat_tbl, pt_compile_cf_data1),
@@ -129,6 +145,10 @@ prepare_los_data <- function(
     purrr::map(\(x) pt_compile_principal_los_data(x, "admissions"))
   beddays_data <- list(results1, results2) |>
     purrr::map(\(x) pt_compile_principal_los_data(x, "beddays"))
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   list(admissions_data, beddays_data) |>
     purrr::map(\(x) {
       rlang::set_names(x, c(scenario1_name, scenario2_name)) |>
@@ -150,6 +170,10 @@ prepare_summary_data <- function(
     reskit::compile_principal_pod_data,
     pod_lookup = pod_lookup
   )
+  if (scenario1_name == scenario2_name) {
+    scenario1_name <- paste0(scenario1_name, " (s1)")
+    scenario2_name <- paste0(scenario1_name, " (s2)")
+  }
   list(results1, results2) |>
     purrr::map(pt_compile_principal_pod_data) |>
     rlang::set_names(c(scenario1_name, scenario2_name)) |>
