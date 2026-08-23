@@ -1,12 +1,9 @@
-create_summary_chart <- function(summary_data, activity_type, measure) {
-  title_text <- glue::glue("{activity_type} {measure} - Summary Comparison")
+create_summary_chart <- function(summary_data, activity_type) {
+  title_text <- glue::glue("{activity_type} - Summary Comparison")
   fill_colours <- c("#f9bf07", "#686f73")
-
+  measure <- sub("^[[:alpha:]]+\\s", "", activity_type)
   summary_data |>
-    dplyr::filter(
-      .data[["activity_type_label"]] == .env[["activity_type"]],
-      .data[["measure"]] == .env[["measure"]]
-    ) |>
+    dplyr::filter(.data[["activity_type_label"]] == .env[["activity_type"]]) |>
     ggplot2::ggplot(ggplot2::aes(.data[["principal"]], .data[["pod_label"]])) +
     ggplot2::geom_col(
       ggplot2::aes(fill = .data[["scenario"]]),

@@ -21,7 +21,7 @@ prepare_beeswarm_data <- function(
   )
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   core_mat_tbl |>
     dplyr::mutate(
@@ -50,13 +50,12 @@ prepare_principal_pi_data <- function(
   )
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   list(results1, results2) |>
     purrr::map(pt_compile_principal_pi_data) |>
     rlang::set_names(c(scenario1_name, scenario2_name)) |>
-    purrr::list_rbind(names_to = "scenario") |>
-    split_on_space("pod_label", names = c("activity_type_label", "pod_label"))
+    purrr::list_rbind(names_to = "scenario")
 }
 
 
@@ -85,7 +84,7 @@ prepare_icf_impact_data <- function(
   )
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   core_mat_tbl |>
     dplyr::mutate(
@@ -117,7 +116,7 @@ prepare_waterfall_data <- function(
   pt_compile_cf_data2 <- purrr::partial(pt_compile_cf_data, results = results2)
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   core_mat_tbl |>
     dplyr::mutate(
@@ -147,7 +146,7 @@ prepare_los_data <- function(
     purrr::map(\(x) pt_compile_principal_los_data(x, "beddays"))
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   list(admissions_data, beddays_data) |>
     purrr::map(\(x) {
@@ -172,7 +171,7 @@ prepare_summary_data <- function(
   )
   if (scenario1_name == scenario2_name) {
     scenario1_name <- paste0(scenario1_name, " (s1)")
-    scenario2_name <- paste0(scenario1_name, " (s2)")
+    scenario2_name <- paste0(scenario2_name, " (s2)")
   }
   list(results1, results2) |>
     purrr::map(pt_compile_principal_pod_data) |>
@@ -181,23 +180,14 @@ prepare_summary_data <- function(
     dplyr::mutate(
       dplyr::across("activity_type_label", \(x) {
         dplyr::if_else(grepl("^Inp", x), x, paste0(x, " Activity"))
-      })
-    ) |>
-    dplyr::mutate(
-      dplyr::across("pod_label", \(x) {
-        forcats::fct_reorder(x, .data[["baseline"]])
       }),
-      dplyr::across("pod_label", \(x) sub(" (Admission|Bed Days)$", "", x)),
-      .by = "measure"
+      dplyr::across("pod_label", \(x) {
+        x <- sub(" (Admission|Bed Days)$", "", x)
+        forcats::fct_reorder(x, .data[["baseline"]])
+      })
     )
 }
 
-
-split_on_space <- function(...) {
-  purrr::partial(tidyr::separate_wider_delim, delim = " ", too_many = "merge")(
-    ...
-  )
-}
 
 unnest_mat_scenarios_tbl <- function(mat_scenarios_tbl) {
   mat_scenarios_tbl |>
