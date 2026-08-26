@@ -2,9 +2,7 @@ mod_waterfall_ui <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::verbatimTextOutput(ns("debug")),
-    htmltools::includeMarkdown("inst/app/waterfall-text.md"),
-    shiny::uiOutput(ns("filters_ui")),
+    htmltools::includeMarkdown(appfile("waterfall-text.md")),
     shiny::plotOutput(ns("plot"))
   )
 }

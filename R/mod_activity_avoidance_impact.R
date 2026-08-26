@@ -2,9 +2,7 @@ mod_activity_avoidance_impact_ui <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::verbatimTextOutput(ns("debug")),
-    htmltools::includeMarkdown("inst/app/aa-impact-text.md"),
-    shiny::uiOutput(ns("filters_ui")),
+    htmltools::includeMarkdown(appfile("aa-impact-text.md")),
     shiny::plotOutput(ns("plot"), height = "800px")
   )
 }

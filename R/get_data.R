@@ -66,7 +66,7 @@ get_results_metadata <- function(allowed_datasets) {
 
 get_user_allowed_datasets <- function(groups = NULL) {
   groups <- groups %||% "nhp_devs"
-  codes <- names(yyjsonr::read_json_file("inst/ref/datasets.json"))
+  codes <- names(yyjsonr::read_json_file(appfile("datasets.json")))
   if (any(c("nhp_devs", "nhp_power_users") %in% groups)) {
     codes
   } else {

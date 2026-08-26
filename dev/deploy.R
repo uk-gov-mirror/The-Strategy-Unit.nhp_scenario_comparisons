@@ -21,12 +21,12 @@ deploy <- function(type = c("dev", "prod")) {
       "app.R",
       "R/",
       "inst/app",
-      "inst/ref",
       "DESCRIPTION"
     ),
     envVars = c(
       "AZ_STORAGE_EP",
       "AZ_TABLE_EP",
+      "AZ_TABLE_NAME",
       "AZ_STORAGE_CONTAINER_RESULTS",
       "FEEDBACK_FORM_URL"
     ),

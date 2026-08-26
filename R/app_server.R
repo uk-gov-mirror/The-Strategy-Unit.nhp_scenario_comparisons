@@ -13,7 +13,7 @@ app_server <- function(input, output, session) {
     }
   })
 
-  all_schemes <- swap_names(yyjsonr::read_json_file("inst/ref/datasets.json"))
+  all_schemes <- swap_names(yyjsonr::read_json_file(appfile("datasets.json")))
   selections <- shiny::reactiveValues()
 
   shiny::observeEvent(nhp_model_runs(), {
@@ -301,11 +301,12 @@ app_server <- function(input, output, session) {
     })
   })
 
+  use_local <- Sys.getenv("NHPSCENARIOCOMP_USE_LOCAL_DATA")
   processed_data <- mod_processing_server(
     id = "processing",
     selections = selections,
     trigger = shiny::reactive(input$render_plot),
-    use_local_data = FALSE
+    use_local_data = ifelse(nzchar(use_local), as.logical(use_local), FALSE)
   )
 
   mod_summary_bar_server("summary", processed_data)

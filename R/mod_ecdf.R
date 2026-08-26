@@ -2,10 +2,8 @@ mod_ecdf_ui <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::verbatimTextOutput(ns("debug")),
-    htmltools::includeMarkdown("inst/app/probabilistic-model-note.md"),
-    htmltools::includeMarkdown("inst/app/s-curve-note.md"),
-    shiny::uiOutput(ns("filters_ui")),
+    htmltools::includeMarkdown(appfile("probabilistic-model-note.md")),
+    htmltools::includeMarkdown(appfile("s-curve-note.md")),
     shiny::checkboxInput(
       ns("show_zero"),
       "Extend x-axis to zero?",

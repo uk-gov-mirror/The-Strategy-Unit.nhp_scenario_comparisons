@@ -2,9 +2,7 @@ mod_p10p90_bar_ui <- function(id) {
   ns <- shiny::NS(id)
 
   shiny::tagList(
-    shiny::verbatimTextOutput(ns("debug")),
-    htmltools::includeMarkdown("inst/app/p10-p90-text.md"),
-    shiny::uiOutput(ns("filters_ui")),
+    htmltools::includeMarkdown(appfile("p10-p90-text.md")),
     shiny::plotOutput(ns("plot"))
   )
 }

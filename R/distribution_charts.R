@@ -24,6 +24,22 @@ create_beeswarm_chart <- function(beeswarm_data, at, measure, show_zero) {
       alpha = 0.5
     ) +
     ggplot2::geom_vline(
+      xintercept = baseline_value,
+      colour = "dimgrey",
+      linewidth = 1.2
+    ) +
+    # Add text labels at the baseline positions
+    ggplot2::annotate(
+      "text",
+      x = baseline_value,
+      y = 0.5,
+      label = "baseline",
+      colour = "dimgrey",
+      angle = 90,
+      vjust = 1,
+      size = 4
+    ) +
+    ggplot2::geom_vline(
       ggplot2::aes(xintercept = .data[["principal"]]),
       colour = "white",
       linewidth = 1.2
@@ -34,6 +50,7 @@ create_beeswarm_chart <- function(beeswarm_data, at, measure, show_zero) {
         xintercept = .data[["principal"]]
       ),
       show.legend = FALSE,
+      linetype = "6111",
       linewidth = 0.6
     ) +
     ggplot2::geom_vline(
@@ -137,7 +154,18 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure, show_zero) {
     ggplot2::geom_vline(
       xintercept = baseline_value,
       colour = "dimgrey",
-      linewidth = 1
+      linewidth = 1.2
+    ) +
+    # Add text labels at the baseline positions
+    ggplot2::annotate(
+      "text",
+      x = baseline_value,
+      y = 0.5,
+      label = "baseline",
+      colour = "dimgrey",
+      angle = 90,
+      vjust = 1,
+      size = 4
     ) +
     ggplot2::geom_vline(
       ggplot2::aes(xintercept = .data[["principal"]]),
@@ -150,18 +178,8 @@ create_ecdf_chart <- function(ecdf_data, activity_type, measure, show_zero) {
         colour = .data[["scenario"]]
       ),
       show.legend = FALSE,
-      linewidth = 0.6
-    ) +
-    # Add text labels at the baseline positions
-    ggplot2::annotate(
-      "text",
-      x = baseline_value,
-      y = 0.5,
-      label = "baseline",
-      colour = "dimgrey",
-      angle = 90,
-      vjust = 1,
-      size = 4
+      linewidth = 0.6,
+      linetype = "6111"
     ) +
     ggplot2::scale_colour_manual(values = c("red", "blue")) +
     ggplot2::scale_linetype_identity() +

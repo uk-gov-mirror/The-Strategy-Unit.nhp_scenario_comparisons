@@ -52,23 +52,22 @@ app_ui <- function(request) {
       ),
       shiny::actionButton("render_plot", "Render Plots", disabled = TRUE)
     ),
-    shiny::verbatimTextOutput("debug"),
     shiny::tabsetPanel(
       shiny::tabPanel(
         "Introduction",
         bslib::card(
           id = "intro",
-          bslib::card_body(htmltools::includeMarkdown("inst/app/intro_text.md"))
+          bslib::card_body(htmltools::includeMarkdown(appfile("intro_text.md")))
         )
       ),
       shiny::tabPanel(
         "Guidance",
         bslib::card(
           id = "card_guidance",
-          htmltools::includeMarkdown("inst/app/model-version-warning.md"),
-          htmltools::includeMarkdown("inst/app/scenario-timespan-warning.md"),
-          htmltools::includeMarkdown("inst/app/model-naming-reminder.md"),
-          htmltools::includeMarkdown("inst/app/bed-days-note.md"),
+          htmltools::includeMarkdown(appfile("model-version-warning.md")),
+          htmltools::includeMarkdown(appfile("scenario-timespan-warning.md")),
+          htmltools::includeMarkdown(appfile("model-naming-reminder.md")),
+          htmltools::includeMarkdown(appfile("bed-days-note.md")),
           shiny::tagList(
             shiny::tags$h3("Scenarios metadata"),
             DT::dataTableOutput("metadata")

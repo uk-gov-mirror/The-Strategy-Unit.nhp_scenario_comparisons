@@ -41,7 +41,7 @@ core_chart_theme <- function() {
   )
 }
 
-create_measure_label <- \(x) uppercase_init(sub("dd", "d D", sub("_", "-", x)))
+create_measure_label <- \(x) uppercase_init(sub("dd", "d D", gsub("_", "-", x)))
 
 bold_red <- \(x) paste0("<p style='color:red;'><strong>", x, "</strong></p>")
 
@@ -66,12 +66,7 @@ pull_unique <- \(df, col) unique(df[[col]])
 
 uppercase_init <- \(x) sub("^([[:alpha:]])(.+)", "\\U\\1\\E\\2", x, perl = TRUE)
 
-error_on_zero_rows <- function(df) {
-  if (nrow(df) == 0) {
-    stop("Table has zero rows")
-  } else {
-    df
-  }
-}
+error_on_zero_rows <- \(df) stopifnot(`Table has no rows` = nrow(df) > 0)
 
-require_rows <- \(x) shiny::req(x, nrow(x) > 0)
+sysfile <- \(...) system.file(..., package = "nhpscenarioanalysis")
+appfile <- \(...) sysfile("app", ...)
